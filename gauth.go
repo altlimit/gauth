@@ -1,6 +1,8 @@
 package gauth
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,86 +13,118 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/altlimit/gauth/cache"
+	"github.com/altlimit/gauth/email"
 )
 
 type (
+	// GAuth is an HTTPServer which handles login, registration, settings, 2fa, etc.
 	GAuth struct {
-		Provider AccountProvider
-		// Page where you can update account info and add 2fa, etc
-		AccountURL    string
-		AccountFields []AccountField
+		// AccountProvider must be implemented for saving your user and notifications
+		AccountProvider AccountProvider
 
-		// Link to send you back out of the login, register or account page
-		CancelURL string
+		// Login/register/settings page fields
+		AccountFields []AccountField
 
 		// Leave blank to disable email verifications
 		EmailFieldID string
-		// Main field, email/username/password (no password means it will use email login link)
-		Identity AccountField
-		Password AccountField
+		// Identity field is the field for logging in
+		IdentityFieldID string
+		// Leave blank to use email link for login
+		PasswordFieldID string
+
+		// URL paths for post and renderer
+		AccountURL  string
+		CancelURL   string
+		LoginURL    string
+		LogoutURL   string
+		RegisterURL string
+		TermsURL    string
 
 		Logger *log.Logger
 
-		LoginURL  string
-		LogoutURL string
-
 		// Provide a secret to activate recaptcha in register/login(only on 3rd try+ for login)
 		RecaptchaSecret string
+		// JwtKey used for registration and token login
+		JwtKey []byte
 
-		RegisterURL string
-		// Link for terms when logging in
-		TermsURL string
 		// Page branding
-		Theme Theme
+		Brand Layout
+
+		inited      bool
+		rateLimiter cache.RateLimiter
+		emailSender email.Sender
 	}
 
 	AccountField struct {
-		ID       string
-		Label    string
-		Type     string
-		Options  []Option
-		Validate func(string) error
+		ID         string
+		Label      string
+		Type       string
+		Options    []Option
+		Validate   func(string) error
+		InSettings bool
 	}
 
 	Option struct {
 		ID string
 	}
 
-	Theme struct {
-		Header  string
+	Layout struct {
 		LogoURL string
-		Primary string
-		Accent  string
-		Neutral string
+
+		EmailHeader    string
+		EmailHeaderURL string
+		EmailFooter    string
+		EmailFooterURL string
+
+		RegisterLabel  string
+		RegisterButton string
+		LoginLabel     string
+		LoginButton    string
+
+		Primary        string
+		PrimaryInverse string
+		Accent         string
+		Neutral        string
+		NeutralInverse string
 	}
 )
 
-// New returns a sane default for GAuth
-func New(provider AccountProvider) *GAuth {
+// NewDefault returns a sane default for GAuth, you can override properties
+func NewDefault(ap AccountProvider) *GAuth {
 	ga := &GAuth{
-		Provider:   provider,
-		AccountURL: "/account",
+		AccountProvider: ap,
+
+		EmailFieldID:    "email",
+		IdentityFieldID: "email",
+		PasswordFieldID: "password",
 		AccountFields: []AccountField{
-			{ID: "name", Label: "Name", Type: "text", Validate: ValidText},
+			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, InSettings: true},
+			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, InSettings: true},
+			{ID: "name", Label: "Name", Type: "text", Validate: RequiredText, InSettings: true},
 		},
-		CancelURL:    "/",
-		EmailFieldID: "email",
-		Identity:     AccountField{ID: "email", Label: "Email", Type: "email", Validate: ValidEmail},
-		Password:     AccountField{ID: "password", Label: "Password", Type: "password", Validate: ValidPassword},
-		Logger:       log.Default(),
-		LoginURL:     "/login",
-		LogoutURL:    "/logout",
-		RegisterURL:  "/register",
-		Theme: Theme{
-			Primary: "dark-gray",
-			Accent:  "light-gray",
-			Neutral: "gray",
+		Logger: log.Default(),
+
+		AccountURL:  "/account",
+		CancelURL:   "/",
+		LoginURL:    "/login",
+		LogoutURL:   "/logout",
+		RegisterURL: "/register",
+
+		Brand: Layout{
+			Primary:        "#1b1b1b",
+			PrimaryInverse: "#ffffff",
+			Accent:         "#cdcdcd",
+			Neutral:        "#f6f6f6",
+			NeutralInverse: "#363636",
 		},
 	}
 	return ga
 }
 
 func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ga.init()
 	path := r.URL.Path
 	if strings.HasSuffix(path, ga.RegisterURL) {
 		if r.Method == http.MethodPost {
@@ -98,7 +132,74 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else if r.Method == http.MethodGet {
 			// render register page
 		}
+	} else if strings.HasSuffix(path, "/email-template") {
+		ga.emailHandler(w, r)
 	}
+}
+
+func (ga *GAuth) fieldByID(id string) *AccountField {
+	for i, f := range ga.AccountFields {
+		if f.ID == ga.EmailFieldID {
+			return &ga.AccountFields[i]
+		}
+	}
+	return nil
+}
+
+func (ga *GAuth) init() {
+	if ga.inited {
+		return
+	}
+	ga.inited = true
+	var buf bytes.Buffer
+	buf.WriteString("Settings")
+	if ga.JwtKey == nil {
+		key, err := randomJWTKey()
+		if err != nil {
+			panic("failed to generated random jwt key")
+		}
+		ga.JwtKey = key
+		buf.WriteString("\n > JwtKey: " + base64.StdEncoding.EncodeToString(key))
+	}
+	buf.WriteString("\n > Send Email: ")
+	if es, ok := ga.AccountProvider.(email.Sender); ok {
+		ga.emailSender = es
+		buf.WriteString("Yes")
+	} else {
+		buf.WriteString("No")
+	}
+
+	buf.WriteString("\n > EmailField: ")
+	if ga.EmailFieldID != "" {
+		if ga.fieldByID(ga.EmailFieldID) == nil {
+			panic("EmailFieldID not found in AccountFields")
+		}
+		buf.WriteString(ga.EmailFieldID)
+	} else {
+		buf.WriteString("(Not Provided)")
+	}
+	buf.WriteString("\n > Password: ")
+	if ga.PasswordFieldID == "" {
+		if ga.emailSender == nil {
+			panic("you must implement email.Sender to send email")
+		}
+		buf.WriteString("No (link login)")
+	} else {
+		if ga.fieldByID(ga.PasswordFieldID) == nil {
+			panic("PasswordFieldID not found in AccountFields")
+		}
+		buf.WriteString(ga.PasswordFieldID)
+	}
+	buf.WriteString("\n > RateLimiter: ")
+	if rl, ok := ga.AccountProvider.(cache.RateLimiter); ok {
+		ga.rateLimiter = rl
+		buf.WriteString("Custom")
+	} else {
+		ga.rateLimiter = cache.NewMemoryRateLimit()
+		buf.WriteString("InMemory (implement cache.RateLimiter)")
+	}
+
+	ga.log(buf.String())
 }
 
 func (ga *GAuth) bind(r *http.Request, out interface{}) error {
@@ -117,8 +218,7 @@ func (ga *GAuth) bind(r *http.Request, out interface{}) error {
 
 func (ga *GAuth) validInput(w http.ResponseWriter, data map[string]string) bool {
 	p := make(map[string]string)
-	fields := append(ga.AccountFields, ga.Identity)
-	for _, field := range fields {
+	for _, field := range ga.AccountFields {
 		if field.Validate != nil {
 			err := field.Validate(data[field.ID])
 			if err != nil {

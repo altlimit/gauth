@@ -2,28 +2,37 @@ package gauth
 
 import (
 	"errors"
+	"math/rand"
 	"net/mail"
+	"time"
 	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-func ValidEmail(email string) error {
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func RequiredEmail(email string) error {
 	_, err := mail.ParseAddress(email)
 	if err != nil {
-		return errors.New("invalid email")
+		return errors.New("enter a valid email")
 	}
 	return nil
 }
 
-func ValidText(text string) error {
+func RequiredText(text string) error {
 	if len(text) > 100 {
-		return errors.New("must be less then 100 characters")
+		return errors.New("too long")
+	}
+	if len(text) == 0 {
+		return errors.New("required")
 	}
 	return nil
 }
 
-func ValidPassword(s string) error {
+func RequiredPassword(s string) error {
 	var (
 		hasMinLen  = false
 		hasUpper   = false
@@ -70,4 +79,13 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func randomJWTKey() ([]byte, error) {
+	key := make([]byte, 64)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
