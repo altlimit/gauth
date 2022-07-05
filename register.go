@@ -36,7 +36,12 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// todo provider save identity
+	// we hash the password before we send to save
+	req[ga.PasswordFieldID], err = hashPassword(req[ga.PasswordFieldID], 13) // todo put cost in GAuth config
+	if err != nil {
+		ga.internalError(w, err)
+		return
+	}
 	if err := ga.AccountProvider.IdentitySave(ctx, req); err != nil {
 		ga.internalError(w, err)
 		return

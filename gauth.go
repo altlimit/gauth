@@ -126,7 +126,13 @@ func NewDefault(ap AccountProvider) *GAuth {
 func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ga.init()
 	path := r.URL.Path
-	if strings.HasSuffix(path, ga.RegisterURL) {
+	if strings.HasSuffix(path, ga.LoginURL) {
+		if r.Method == http.MethodPost {
+			ga.loginHandler(w, r)
+		} else if r.Method == http.MethodGet {
+			// render login page
+		}
+	} else if strings.HasSuffix(path, ga.RegisterURL) {
 		if r.Method == http.MethodPost {
 			ga.registerHandler(w, r)
 		} else if r.Method == http.MethodGet {

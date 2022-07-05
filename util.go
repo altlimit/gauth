@@ -73,12 +73,16 @@ func RequiredPassword(s string) error {
 	return nil
 }
 
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 13)
+func hashPassword(password string, cost int) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 	if err != nil {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func validPassword(hashed, password string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hashed), []byte(password)) == nil
 }
 
 func randomJWTKey() ([]byte, error) {
