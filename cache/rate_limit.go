@@ -40,15 +40,18 @@ func NewMemoryRateLimit() *MemoryRateLimit {
 	mrl := &MemoryRateLimit{
 		Cache: make(map[string]*CacheItem),
 	}
-	// clears cache every hour
+	// clears cache every 10 minute
 	go func() {
 		for {
-			time.Sleep(time.Hour)
+			time.Sleep(time.Minute * 10)
+			now := time.Now()
+			mrl.lock.Lock()
 			for k, v := range mrl.Cache {
-				if v.Expires.Before(time.Now()) {
+				if v.Expires.Before(now) {
 					delete(mrl.Cache, k)
 				}
 			}
+			mrl.lock.Unlock()
 		}
 	}()
 	return mrl
@@ -61,6 +64,7 @@ func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int,
 	now := time.Now()
 	if !ok || item.Expires.Before(now) {
 		item = &CacheItem{Value: 0, Expires: now.Add(t)}
+
 	}
 	val, ok := item.Value.(int)
 	if ok {

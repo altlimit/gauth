@@ -16,6 +16,7 @@ import (
 
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/email"
+	"github.com/altlimit/gauth/form"
 )
 
 type (
@@ -23,71 +24,50 @@ type (
 	GAuth struct {
 		// AccountProvider must be implemented for saving your user and notifications
 		AccountProvider AccountProvider
+		// Customize your access token claims
+		TokenProvider TokenProvider
 
 		// Login/register/settings page fields
-		AccountFields []AccountField
+		AccountFields []form.Field
 
-		// Leave blank to disable email verifications
+		// Field for email verifications
 		EmailFieldID string
 		// Identity field is the field for logging in
 		IdentityFieldID string
 		// Leave blank to use email link for login
 		PasswordFieldID string
 
-		// URL paths for post and renderer
-		AccountURL  string
-		CancelURL   string
-		LoginURL    string
-		LogoutURL   string
-		RegisterURL string
-		TermsURL    string
+		// Defaults to /auth/
+		BasePath string
+
+		// Paths for post and renderer
+		AccountPath  string
+		CancelPath   string
+		LoginPath    string
+		LogoutPath   string
+		RefreshPath  string
+		RegisterPath string
+		TermsPath    string
 
 		Logger *log.Logger
 
+		// By default this uses embedded alpineJS
+		AlpineJSURL string
 		// Provide a secret to activate recaptcha in register/login(only on 3rd try+ for login)
 		RecaptchaSecret string
 		// JwtKey used for registration and token login
 		JwtKey []byte
 
 		// Page branding
-		Brand Layout
+		Brand form.Brand
 
-		inited      bool
 		rateLimiter cache.RateLimiter
 		emailSender email.Sender
 	}
 
-	AccountField struct {
-		ID         string
-		Label      string
-		Type       string
-		Options    []Option
-		Validate   func(string) error
-		InSettings bool
-	}
-
-	Option struct {
-		ID string
-	}
-
-	Layout struct {
-		LogoURL string
-
-		EmailHeader    string
-		EmailHeaderURL string
-		EmailFooter    string
-		EmailFooterURL string
-
-		RegisterLabel  string
-		RegisterButton string
-		LoginLabel     string
-		LoginButton    string
-
-		Primary        string
-		PrimaryInverse string
-		Accent         string
-		Neutral        string
-		NeutralInverse string
+	errorResponse struct {
+		Error string            `json:"error"`
+		Data  map[string]string `json:"data,omitempty"`
 	}
 )
 
@@ -99,64 +79,67 @@ func NewDefault(ap AccountProvider) *GAuth {
 		EmailFieldID:    "email",
 		IdentityFieldID: "email",
 		PasswordFieldID: "password",
-		AccountFields: []AccountField{
+		AccountFields: []form.Field{
 			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, InSettings: true},
 			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, InSettings: true},
-			{ID: "name", Label: "Name", Type: "text", Validate: RequiredText, InSettings: true},
 		},
 		Logger: log.Default(),
 
-		AccountURL:  "/account",
-		CancelURL:   "/",
-		LoginURL:    "/login",
-		LogoutURL:   "/logout",
-		RegisterURL: "/register",
+		AccountPath:  "/account",
+		LoginPath:    "/login",
+		LogoutPath:   "/logout",
+		RegisterPath: "/register",
+		RefreshPath:  "/refresh",
 
-		Brand: Layout{
-			Primary:        "#1b1b1b",
-			PrimaryInverse: "#ffffff",
-			Accent:         "#cdcdcd",
-			Neutral:        "#f6f6f6",
-			NeutralInverse: "#363636",
+		Brand: form.Brand{
+			Primary:        "#121111",
+			PrimaryInverse: "#fefefe",
+			Accent:         "#BDBBBB",
+			Neutral:        "#555454",
+			NeutralInverse: "#f1f1f1",
 		},
 	}
 	return ga
 }
 
 func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ga.init()
-	path := r.URL.Path
-	if strings.HasSuffix(path, ga.LoginURL) {
+	path := r.URL.Path[len(ga.BasePath):]
+	switch path {
+	case ga.LoginPath:
 		if r.Method == http.MethodPost {
 			ga.loginHandler(w, r)
 		} else if r.Method == http.MethodGet {
-			// render login page
+			ga.renderLoginHandler(w, r)
 		}
-	} else if strings.HasSuffix(path, ga.RegisterURL) {
+	case ga.RegisterPath:
 		if r.Method == http.MethodPost {
 			ga.registerHandler(w, r)
 		} else if r.Method == http.MethodGet {
 			// render register page
 		}
-	} else if strings.HasSuffix(path, "/email-template") {
+	case ga.RefreshPath:
+		if r.Method == http.MethodGet {
+			ga.refreshHandler(w, r)
+		}
+	case "/email-template":
 		ga.emailHandler(w, r)
+	case "/alpine.js":
+		form.RenderAlpineJS(w, r)
+	case "/client.js":
+		form.RenderClientJS(w, r)
 	}
 }
 
-func (ga *GAuth) fieldByID(id string) *AccountField {
+func (ga *GAuth) fieldByID(id string) *form.Field {
 	for i, f := range ga.AccountFields {
-		if f.ID == ga.EmailFieldID {
+		if f.ID == id {
 			return &ga.AccountFields[i]
 		}
 	}
 	return nil
 }
 
-func (ga *GAuth) init() {
-	if ga.inited {
-		return
-	}
-	ga.inited = true
+func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	var buf bytes.Buffer
 	buf.WriteString("Settings")
 	if ga.JwtKey == nil {
@@ -165,7 +148,24 @@ func (ga *GAuth) init() {
 			panic("failed to generated random jwt key")
 		}
 		ga.JwtKey = key
-		buf.WriteString("\n > JwtKey: " + base64.StdEncoding.EncodeToString(key))
+		buf.WriteString("\n > Random JwtKey: " + base64.StdEncoding.EncodeToString(key))
+	}
+	if ga.AlpineJSURL == "" {
+		ga.AlpineJSURL = "/alpine.js"
+	}
+	if ga.BasePath == "" {
+		ga.BasePath = "/auth"
+	} else if len(ga.BasePath) > 1 {
+		ga.BasePath = "/" + strings.Trim(ga.BasePath, "/")
+	}
+	buf.WriteString("\n > BasePath: " + ga.BasePath)
+
+	buf.WriteString("\n > TokenProvider: ")
+	if ga.TokenProvider == nil {
+		buf.WriteString("Built-In")
+		ga.TokenProvider = &DefaultTokenProvider{}
+	} else {
+		buf.WriteString("Custom")
 	}
 	buf.WriteString("\n > Send Email: ")
 	if es, ok := ga.AccountProvider.(email.Sender); ok {
@@ -205,7 +205,10 @@ func (ga *GAuth) init() {
 		buf.WriteString("InMemory (implement cache.RateLimiter)")
 	}
 
-	ga.log(buf.String())
+	if showInfo {
+		ga.log(buf.String())
+	}
+	return ga
 }
 
 func (ga *GAuth) bind(r *http.Request, out interface{}) error {
@@ -233,7 +236,7 @@ func (ga *GAuth) validInput(w http.ResponseWriter, data map[string]string) bool 
 		}
 	}
 	if len(p) > 0 {
-		ga.writeJSON(http.StatusBadRequest, w, p)
+		ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "validation", Data: p})
 		return false
 	}
 	return true
@@ -241,11 +244,11 @@ func (ga *GAuth) validInput(w http.ResponseWriter, data map[string]string) bool 
 
 func (ga *GAuth) writeJSON(status int, w http.ResponseWriter, resp interface{}) {
 	if resp == nil {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(status)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		panic(err)
 	}
@@ -258,7 +261,7 @@ func (ga *GAuth) validationError(w http.ResponseWriter, params ...string) {
 			p[params[i]] = params[i+1]
 		}
 	}
-	ga.writeJSON(http.StatusBadRequest, w, p)
+	ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "validation", Data: p})
 }
 
 func (ga *GAuth) log(args ...interface{}) {

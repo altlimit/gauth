@@ -1,6 +1,7 @@
 package gauth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -13,6 +14,28 @@ func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
 
 	ed, _ := ga.emailVerifyMessage(map[string]string{})
 	w.Write([]byte(ed.HTMLContent))
+}
+
+func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) error {
+	if ga.emailSender != nil && ga.EmailFieldID != "" {
+		var (
+			ed  *email.Data
+			err error
+		)
+		switch t {
+		case "emailVerifyMessage":
+			ed, err = ga.emailVerifyMessage(req)
+		}
+		if err != nil {
+			return err
+		}
+		if ed != nil {
+			if err := ga.emailSender.SendEmail(ctx, req[ga.EmailFieldID], ed.Subject, ed.TextContent, ed.HTMLContent); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
@@ -34,6 +57,11 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 
 	if evm, ok := ga.AccountProvider.(email.ConfirmEmail); ok {
 		ed.Subject, ed.Data = evm.ConfirmEmail()
+	}
+
+	// empty subject to skip email
+	if ed.Subject == "" {
+		return nil, nil
 	}
 
 	if err := ed.Parse(d); err != nil {
