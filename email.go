@@ -57,10 +57,10 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 	}
 
 	ed := &email.Data{
-		HeaderLabel:    ga.Brand.EmailHeader,
-		HeaderURL:      ga.Brand.EmailHeaderURL,
-		FooterLabel:    ga.Brand.EmailFooter,
-		FooterURL:      ga.Brand.EmailFooterURL,
+		HeaderLabel:    ga.Brand.AppName,
+		HeaderURL:      ga.Brand.AppURL,
+		FooterLabel:    ga.Brand.AppName,
+		FooterURL:      ga.Brand.AppURL,
 		Primary:        ga.Brand.Primary,
 		PrimaryInverse: ga.Brand.PrimaryInverse,
 		Accent:         ga.Brand.Accent,
@@ -68,7 +68,7 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 		Subject:        "Verify Your Email",
 		Data: []email.Part{
 			{P: "Click the link below to verify your email."},
-			{URL: ga.BaseURL + ga.Path.Login + "?verify=" + tok, Label: "Verify"},
+			{URL: ga.Brand.AppURL + ga.Path.Login + "?verify=" + tok, Label: "Verify"},
 		},
 	}
 

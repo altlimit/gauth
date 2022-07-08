@@ -28,7 +28,6 @@ var (
 type (
 	ValidateFunc func(fieldID string, data map[string]string) error
 	Config       struct {
-		BaseURL     string
 		AlpineJSURL string
 		Brand       Brand
 		Path        Path
@@ -55,11 +54,8 @@ type (
 
 	Brand struct {
 		LogoURL string
-
-		EmailHeader    string
-		EmailHeaderURL string
-		EmailFooter    string
-		EmailFooterURL string
+		AppName string
+		AppURL  string
 
 		RegisterLabel  string
 		RegisterButton string

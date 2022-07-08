@@ -73,7 +73,9 @@ func (dp *datastoreProvider) SendEmail(ctx context.Context, toEmail, subject, te
 func main() {
 	port := "8887"
 	ga := gauth.NewDefault(&datastoreProvider{})
-	ga.BaseURL = "http://localhost:" + port
+	ga.Brand.AppName = "Demo Memory"
+	ga.Brand.LogoURL = "https://www.altlimit.com/logo.png"
+	ga.Brand.AppURL = "http://localhost:" + port
 	ga.Path.Terms = "/terms"
 	ga.AccountFields = append(ga.AccountFields,
 		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},

@@ -243,16 +243,14 @@ footer {
     opacity:.5;
 }
 .logo {
-    width: 100px;
-    height: 100px;
     margin: 2rem;
-    border-radius: 50%;
-    background-color: var(--primary);
-    color: var(--primary-inverse);
+    border-radius: 15%;
     font-weight: 100;
-    font-size: 3rem;
+    font-size: 2rem;
+    padding: 1rem;
     display: flex;
-    justify-content: center;
+    flex-direction: row;
+    text-align: center;
     align-items: center;
 }
 .logo > img {
@@ -333,6 +331,9 @@ pre {
         flex-direction: row;
         width: 800px;
     }
+    .logo {
+        flex-direction: column;
+    }
     .sidebar {
         flex-direction: column-reverse;
         justify-content: space-between;
@@ -390,7 +391,14 @@ pre {
             <div class="nav-panel">
                 {{template "nav" .}}
             </div>
-            <figure class="logo">F</figure>
+            <figure class="logo">
+                {{if .Brand.LogoURL}}
+                    <a href="{{.Brand.AppURL}}">
+                        <img src="{{.Brand.LogoURL}}" />
+                    </a>
+                {{end}}
+                {{.Brand.AppName}}
+            </figure>
         </figure>
         <div class="main">
             {{template "content" .}}

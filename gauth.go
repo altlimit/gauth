@@ -44,8 +44,6 @@ type (
 		// Leave blank to use email link for login
 		PasswordFieldID string
 
-		// Defaults to empty string, you should put your url here https://example.com
-		BaseURL string
 		// Path for login, register, etc
 		Path   form.Path
 		Logger *log.Logger
@@ -146,7 +144,6 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (ga *GAuth) formConfig() *form.Config {
 	return &form.Config{
-		BaseURL:     ga.BaseURL,
 		Brand:       ga.Brand,
 		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
@@ -176,6 +173,12 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	var buf bytes.Buffer
 
 	// check for required stuff
+	if ga.Brand.AppName == "" {
+		panic("AppName brand missing")
+	}
+	if ga.Brand.AppURL == "" {
+		panic("AppURL brand missing")
+	}
 	if ga.Path.Account == "" {
 		panic("Account path missing")
 	}
