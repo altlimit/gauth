@@ -97,11 +97,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ga *GAuth) renderLoginHandler(w http.ResponseWriter, r *http.Request) {
-	fc := &form.Config{
-		Brand:       ga.Brand,
-		Path:        ga.Path,
-		AlpineJSURL: ga.AlpineJSURL,
-	}
+	fc := ga.formConfig()
 	fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
 	// todo magic login link
 	if ga.PasswordFieldID != "" {

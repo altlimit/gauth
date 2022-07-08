@@ -20,12 +20,4 @@ var login = `{{define "content"}}
 
     </form>
 </div>
-{{end}}
-
-
-{{ define "nav"}}
-<div class="nav-panel">
-    <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
-</div>
-{{ end }}
-`
+{{end}}`

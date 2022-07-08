@@ -4,7 +4,6 @@ var register = `{{define "content"}}
 <div class="container" x-data="form">
     <form class="form" @submit.prevent="submit">
         <h1 class="title">Create An Account</h1>
-        <span x-html="JSON.stringify(input)"></span>
         {{range .Fields}}
             <div class="field">
                 <label for="{{.ID}}">{{.Label}}</label>

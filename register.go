@@ -74,13 +74,8 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ga *GAuth) renderRegisterHandler(w http.ResponseWriter, r *http.Request) {
-	fc := &form.Config{
-		Brand:       ga.Brand,
-		Path:        ga.Path,
-		AlpineJSURL: ga.AlpineJSURL,
-		Fields:      ga.registerFields(),
-	}
-
+	fc := ga.formConfig()
+	fc.Fields = ga.registerFields()
 	if err := form.Render(w, "register", fc); err != nil {
 		ga.internalError(w, err)
 	}

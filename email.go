@@ -4,8 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/altlimit/gauth/email"
+	"github.com/golang-jwt/jwt/v4"
+)
+
+const (
+	actionVerify = "verify"
 )
 
 func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +45,17 @@ func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) 
 }
 
 func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
+
+	refreshToken := jwt.New(jwt.SigningMethodHS256)
+	claims := refreshToken.Claims.(jwt.MapClaims)
+	claims["sub"] = d[ga.EmailFieldID]
+	claims["act"] = actionVerify
+	claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
+	tok, err := refreshToken.SignedString(ga.JwtKey)
+	if err != nil {
+		return nil, fmt.Errorf("emailVerifyMessage: SignedString error %v", err)
+	}
+
 	ed := &email.Data{
 		HeaderLabel:    ga.Brand.EmailHeader,
 		HeaderURL:      ga.Brand.EmailHeaderURL,
@@ -51,7 +68,7 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 		Subject:        "Verify Your Email",
 		Data: []email.Part{
 			{P: "Click the link below to verify your email."},
-			{URL: "/verify", Label: "Verify"},
+			{URL: ga.BaseURL + ga.Path.Login + "?verify=" + tok, Label: "Verify"},
 		},
 	}
 

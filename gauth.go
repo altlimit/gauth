@@ -44,6 +44,8 @@ type (
 		// Leave blank to use email link for login
 		PasswordFieldID string
 
+		// Defaults to empty string, you should put your url here https://example.com
+		BaseURL string
 		// Path for login, register, etc
 		Path   form.Path
 		Logger *log.Logger
@@ -139,6 +141,15 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		form.RenderAlpineJS(w, r)
 	case "/client.js":
 		form.RenderClientJS(w, r)
+	}
+}
+
+func (ga *GAuth) formConfig() *form.Config {
+	return &form.Config{
+		BaseURL:     ga.BaseURL,
+		Brand:       ga.Brand,
+		Path:        ga.Path,
+		AlpineJSURL: ga.AlpineJSURL,
 	}
 }
 
