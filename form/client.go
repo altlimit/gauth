@@ -28,16 +28,35 @@ document.addEventListener('alpine:init', () => {
 		xhr.send(JSON.stringify(data));
     }
 
-	function handleError(r) {
-		console.log("Error", r);
-	}
+	Alpine.store('notify', {
+		alertId: 0,
+		alerts: [],
+		close: function (index) {
+			this.alerts.splice(index, 1);
+		},
+		alert: function(type, message) {
+			this.alerts.push({type: type, message: message, id: ++this.alertId});
+			const self = this;
+			setTimeout(function() {
+				const id = this.id;
+				const idx = self.alerts.findIndex(function(a) { return a.id === id });
+				if (idx !== -1) {
+					self.alerts.splice(idx, 1);
+				}
+			}.bind({id: this.alertId}), 5000);
+		},
+	});
 
-	Alpine.data('loginForm', function() {
+	Alpine.data('form', function() {
 		return {
 			input: {},
 			errors: {},
 			loading: false,
 			submit(e) {
+				this.errors = {};
+				if (this.input.terms !== undefined) {
+					this.input.terms = this.input.terms ? "agree" : "";
+				}
 				this.loading = true;
 				sendRequest("POST", location.pathname, this.input, function(r) {
 					console.log("Success", r);
@@ -46,10 +65,12 @@ document.addEventListener('alpine:init', () => {
 					this.loading = false;
 					if (err.error === "validation") {
 						this.errors = err.data;
+					} else {
+						Alpine.store('notify').alert("danger", err.error);
 					}
 				}.bind(this));
 			}
 		}
-	})
-})
+	});
+});
 `

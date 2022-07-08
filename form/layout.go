@@ -107,7 +107,7 @@ p {
     gap: 0.375rem;
 }
 .checkbox {
-    flex-direction: row-reverse;
+    flex-direction: row;
     justify-content: left;
     align-items: baseline;
 }
@@ -205,16 +205,26 @@ footer {
     color: var(--primary);
     font-size: smaller;
 }
+.notify {
+    width:100%;
+}
 .notification {
     position: fixed;
     bottom: 0;
     width: 100%;
     padding: 1rem;
     background-color: var(--primary-inverse);
-    color: var(--primary);
     border: var(--neutral);
     filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.07)) drop-shadow(0 2px 2px rgb(0 0 0 / 0.06));
+    display: flex;
+}
+.notification .message {
+    color: white;
+    width: 100%;
     font-weight: 500;
+}
+.notification .close {
+    cursor: pointer;
 }
 .notification.success {
     background-color: var(--success);
@@ -369,8 +379,8 @@ pre {
     }
 }
 </style>
-<script src="{{.BasePath}}/client.js"></script>
-<script defer src="{{.BasePath}}{{.AlpineJSURL}}"></script>
+<script src="{{.Path.Base}}/client.js"></script>
+<script defer src="{{.Path.Base}}{{.AlpineJSURL}}"></script>
 </head>
 
 <body>
@@ -385,6 +395,14 @@ pre {
         <div class="main">
             {{template "content" .}}
         </div>
+    </div>
+    <div x-data class="notify">
+        <template x-for="(a, i) in $store.notify.alerts">
+            <div class="notification" :class="a.type">
+                <span class="message" x-text="a.message"></span>
+                <span class="close" @click="$store.notify.close(i)">X</span>
+            </div>
+        </template>
     </div>
 </body>
 </html>

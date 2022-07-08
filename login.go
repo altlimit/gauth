@@ -33,21 +33,13 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	loginKey := "login:" + strings.ToLower(identity)
 	if err := ga.rateLimiter.RateLimit(ctx, loginKey, 10, time.Hour); err != nil {
-		if errRL, ok := err.(cache.RateLimitError); ok {
-			ga.validationError(w, ga.IdentityFieldID, errRL.Error())
+		if _, ok := err.(cache.RateLimitError); ok {
+			ga.validationError(w, ga.IdentityFieldID, "try again later")
 			return
 		}
 		ga.internalError(w, err)
 		return
 	}
-	// _, ok := req["remember"]
-	// 6 hours without remember me
-	// tokenExpire := time.Hour * 6
-	// if ok {
-	// 30 days with remember me
-	// tokenExpire = time.Hour * 24 * 30
-	// }
-
 	account, err := ga.AccountProvider.IdentityLoad(ctx, identity)
 	if err != nil {
 		if err == ErrAccountNotActive {
@@ -107,7 +99,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 func (ga *GAuth) renderLoginHandler(w http.ResponseWriter, r *http.Request) {
 	fc := &form.Config{
 		Brand:       ga.Brand,
-		BasePath:    ga.BasePath,
+		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
 	}
 	fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))

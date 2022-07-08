@@ -60,6 +60,7 @@ func NewMemoryRateLimit() *MemoryRateLimit {
 func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int, t time.Duration) error {
 	key = "rate:" + key
 	mrl.lock.Lock()
+	defer mrl.lock.Unlock()
 	item, ok := mrl.Cache[key]
 	now := time.Now()
 	if !ok || item.Expires.Before(now) {

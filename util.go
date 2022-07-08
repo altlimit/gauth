@@ -14,25 +14,31 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func RequiredEmail(email string) error {
-	_, err := mail.ParseAddress(email)
+func RequiredEmail(fID string, data map[string]string) error {
+	s := data[fID]
+	_, err := mail.ParseAddress(s)
 	if err != nil {
 		return errors.New("enter a valid email")
 	}
 	return nil
 }
 
-func RequiredText(text string) error {
-	if len(text) > 100 {
+func RequiredText(fID string, data map[string]string) error {
+	s := data[fID]
+	if len(s) > 100 {
 		return errors.New("too long")
 	}
-	if len(text) == 0 {
+	if len(s) == 0 {
 		return errors.New("required")
 	}
 	return nil
 }
 
-func RequiredPassword(s string) error {
+func RequiredPassword(fID string, data map[string]string) error {
+	s := data[fID]
+	if s == "" {
+		return errors.New("required")
+	}
 	var (
 		hasMinLen  = false
 		hasUpper   = false

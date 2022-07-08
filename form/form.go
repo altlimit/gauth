@@ -26,10 +26,11 @@ var (
 )
 
 type (
-	Config struct {
-		BasePath    string
+	ValidateFunc func(fieldID string, data map[string]string) error
+	Config       struct {
 		AlpineJSURL string
 		Brand       Brand
+		Path        Path
 
 		Title       string
 		Description string
@@ -38,16 +39,17 @@ type (
 	}
 
 	Field struct {
-		ID         string
-		Label      string
-		Type       string
-		Options    []Option
-		Validate   func(string) error
-		InSettings bool
+		ID          string
+		Label       string
+		Type        string
+		Options     []Option
+		Validate    ValidateFunc
+		SettingsTab string
 	}
 
 	Option struct {
-		ID string
+		ID    string
+		Label string
 	}
 
 	Brand struct {
@@ -69,6 +71,21 @@ type (
 		Neutral        string
 		NeutralInverse string
 	}
+
+	Path struct {
+		// Defaults to /auth/
+		Base string
+		// Defaults to / provide where you want it to link back to
+		Home string
+
+		// paths for post and renderer
+		Account  string
+		Login    string
+		Logout   string
+		Refresh  string
+		Register string
+		Terms    string
+	}
 )
 
 func init() {
@@ -89,7 +106,6 @@ func init() {
 }
 
 func Render(w http.ResponseWriter, page string, c *Config) error {
-
 	return formTpl[page].ExecuteTemplate(w, "layout", c)
 }
 

@@ -1,49 +1,49 @@
 package form
 
 var register = `{{define "content"}}
-<div class="container">
-    <form class="form">
+<div class="container" x-data="form">
+    <form class="form" @submit.prevent="submit">
         <h1 class="title">Create An Account</h1>
+        <span x-html="JSON.stringify(input)"></span>
+        {{range .Fields}}
+            <div class="field">
+                <label for="{{.ID}}">{{.Label}}</label>
+                {{if eq .Type "select"}}
+                    <select id="{{.ID}}" x-model="input.{{.ID}}">
+                    {{range .Options}}
+                        <option value="{{.ID}}">{{.Label}}</option>
+                    {{end}}
+                    </select>
+                {{else if eq .Type "textarea"}}
+                    <textarea id="{{.ID}}" x-model="input.{{.ID}}" rows=5></textarea>
+                {{else}}
+                    <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
+                {{end}}
+                <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
+            </div>
+        {{end}}
+        {{if .Path.Terms}}
         <div class="field">
-            <label for="email">Email Address</label>
-            <input id="email" type="email"/>
-            <span class="help danger">please enter a valid email address</span>
+            <div class="checkbox">
+                <input id="agreeTerms" type="checkbox" value="agree" x-model="input.terms"/>
+                <label for="agreeTerms">I agree to the <a href="{{.Path.Terms}}">terms and agreement</a>.</label>
+            </div>
+            <span class="help danger" x-show="errors.terms" x-text="errors.terms"></span>
         </div>
-        <div class="field">
-            <label for="password">Password</label>
-            <input id="password" type="password"/>
-        </div>
-        <div class="field">
-            <label for="confirm">Re-Type Password</label>
-            <input id="confirm" type="password"/>
-        </div>
-        <div class="field">
-            <label for="question">Security Question</label>
-            <select id="question" name="question">
-                <option value="">Pick a security question</option>
-                <option value="1">What is the name of your favorite pet?</option>
-                <option value="2">What is your mother's maiden name?</option>
-                <option value="3">What high school did you attend?</option>
-                <option value="4">What is the name of your first school?</option>
-                <option value="5">What was the make of your first car?</option>
-                <option value="6">What was your favorite food as a child?</option>
-              </select>
-        </div>
-        <div class="field">
-            <label for="answer">Answer</label>
-            <textarea id="answer" rows=5></textarea>
-        </div>
-        <div class="field checkbox">
-            <label for="agree">I agree to the terms and agreement.</label>
-            <input id="agree" type="checkbox"/>
-        </div>
+        {{end}}
         <div class="action-panel">
             <button type="submit" class="button">Register</button>
             <div class="list">
-                <a href="#" class="link">&#x25B6; Login</a>
+                <a href="{{.Path.Base}}{{.Path.Login}}" class="link">&#x25B6; Login</a>
             </div>
-
         </div>
     </form>
 </div>
-{{end}}`
+{{end}}
+
+{{ define "nav"}}
+<div class="nav-panel">
+    <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
+</div>
+{{ end }}
+`

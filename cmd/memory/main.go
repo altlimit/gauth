@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/altlimit/gauth"
-	"github.com/altlimit/gauth/email"
 	"github.com/altlimit/gauth/form"
 )
 
@@ -60,19 +59,29 @@ func (dp *datastoreProvider) IdentitySave(ctx context.Context, data map[string]s
 	return nil
 }
 func (dp *datastoreProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
+	log.Println("ToEmail", toEmail, "\nSubject", subject, "\nTextBody: ", textBody)
 	return nil
 }
 
-func (dp *datastoreProvider) ConfirmEmail() (string, []email.Part) {
-	return "Click Verification Link", []email.Part{
-		{P: "Test {name}"},
-		{URL: "{link}", Label: "BUTTON"},
-	}
-}
+// func (dp *datastoreProvider) ConfirmEmail() (string, []email.Part) {
+// 	return "Click Verification Link", []email.Part{
+// 		{P: "Test {name}"},
+// 		{URL: "{link}", Label: "BUTTON"},
+// 	}
+// }
 
 func main() {
 	ga := gauth.NewDefault(&datastoreProvider{})
-	ga.AccountFields = append(ga.AccountFields, form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, InSettings: true})
+	ga.Path.Terms = "/terms"
+	ga.AccountFields = append(ga.AccountFields,
+		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},
+		&form.Field{ID: "question", Label: "Security Question", Type: "select", Validate: gauth.RequiredText, SettingsTab: "Security,only", Options: []form.Option{
+			{Label: "Pick a security question"},
+			{ID: "1", Label: "What is the name of your favorite pet?"},
+			{ID: "2", Label: "What is your mother's maiden name?<"},
+		}},
+		&form.Field{ID: "answer", Label: "Answer", Type: "textarea", Validate: gauth.RequiredText, SettingsTab: "Security,only"},
+	)
 	http.Handle("/auth/", ga.MustInit(true))
 	port := "8887"
 	log.Println("Listening: " + port)

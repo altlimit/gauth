@@ -12,11 +12,18 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/email"
 	"github.com/altlimit/gauth/form"
+)
+
+const (
+	FieldTOTPSecretID    = "totpsecret"
+	FieldRecoveryCodesID = "recoverycodes"
+	FieldTermsID         = "terms"
 )
 
 type (
@@ -28,7 +35,7 @@ type (
 		TokenProvider TokenProvider
 
 		// Login/register/settings page fields
-		AccountFields []form.Field
+		AccountFields []*form.Field
 
 		// Field for email verifications
 		EmailFieldID string
@@ -37,18 +44,8 @@ type (
 		// Leave blank to use email link for login
 		PasswordFieldID string
 
-		// Defaults to /auth/
-		BasePath string
-
-		// Paths for post and renderer
-		AccountPath  string
-		CancelPath   string
-		LoginPath    string
-		LogoutPath   string
-		RefreshPath  string
-		RegisterPath string
-		TermsPath    string
-
+		// Path for login, register, etc
+		Path   form.Path
 		Logger *log.Logger
 
 		// By default this uses embedded alpineJS
@@ -57,6 +54,8 @@ type (
 		RecaptchaSecret string
 		// JwtKey used for registration and token login
 		JwtKey []byte
+		// AesKey will encrypt/decrypt your totpsecret
+		AesKey []byte
 
 		// Page branding
 		Brand form.Brand
@@ -71,26 +70,39 @@ type (
 	}
 )
 
+var (
+	validIDRe = regexp.MustCompile(`^[\w]+$`)
+)
+
 // NewDefault returns a sane default for GAuth, you can override properties
 func NewDefault(ap AccountProvider) *GAuth {
-	ga := &GAuth{
+	var ga *GAuth
+
+	confirmPass := func(fID string, d map[string]string) error {
+		s := d[fID]
+		if s != d[ga.PasswordFieldID] {
+			return errors.New("password do not match")
+		}
+		return nil
+	}
+	ga = &GAuth{
 		AccountProvider: ap,
 
 		EmailFieldID:    "email",
 		IdentityFieldID: "email",
 		PasswordFieldID: "password",
-		AccountFields: []form.Field{
-			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, InSettings: true},
-			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, InSettings: true},
+		AccountFields: []*form.Field{
+			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
+			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, SettingsTab: "Password"},
+			{ID: "repassword", Label: "Re-Type Password", Type: "password", Validate: confirmPass, SettingsTab: "Password"},
 		},
-		Logger: log.Default(),
-
-		AccountPath:  "/account",
-		LoginPath:    "/login",
-		LogoutPath:   "/logout",
-		RegisterPath: "/register",
-		RefreshPath:  "/refresh",
-
+		Path: form.Path{
+			Account:  "/account",
+			Login:    "/login",
+			Logout:   "/logout",
+			Register: "/register",
+			Refresh:  "/refresh",
+		},
 		Brand: form.Brand{
 			Primary:        "#121111",
 			PrimaryInverse: "#fefefe",
@@ -103,21 +115,21 @@ func NewDefault(ap AccountProvider) *GAuth {
 }
 
 func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[len(ga.BasePath):]
+	path := r.URL.Path[len(ga.Path.Base):]
 	switch path {
-	case ga.LoginPath:
+	case ga.Path.Login:
 		if r.Method == http.MethodPost {
 			ga.loginHandler(w, r)
 		} else if r.Method == http.MethodGet {
 			ga.renderLoginHandler(w, r)
 		}
-	case ga.RegisterPath:
+	case ga.Path.Register:
 		if r.Method == http.MethodPost {
 			ga.registerHandler(w, r)
 		} else if r.Method == http.MethodGet {
-			// render register page
+			ga.renderRegisterHandler(w, r)
 		}
-	case ga.RefreshPath:
+	case ga.Path.Refresh:
 		if r.Method == http.MethodGet {
 			ga.refreshHandler(w, r)
 		}
@@ -133,14 +145,54 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (ga *GAuth) fieldByID(id string) *form.Field {
 	for i, f := range ga.AccountFields {
 		if f.ID == id {
-			return &ga.AccountFields[i]
+			return ga.AccountFields[i]
 		}
 	}
 	return nil
 }
 
+func (ga *GAuth) registerFields() (fields []*form.Field) {
+	for _, f := range ga.AccountFields {
+		// Accounts,only <-- meaning not included in register form
+		if !strings.Contains(f.SettingsTab, ",only") {
+			fields = append(fields, f)
+		}
+	}
+	return
+}
+
 func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	var buf bytes.Buffer
+
+	// check for required stuff
+	if ga.Path.Account == "" {
+		panic("Account path missing")
+	}
+	if ga.Path.Login == "" {
+		panic("Login path missing")
+	}
+	if ga.Path.Register == "" {
+		panic("Register path missing")
+	}
+	if ga.Path.Logout == "" {
+		panic("Logout path missing")
+	}
+	if ga.Path.Refresh == "" {
+		panic("Refresh path missing")
+	}
+
+	// check if all fields are valid
+	for _, f := range ga.AccountFields {
+		if !validIDRe.MatchString(f.ID) {
+			panic("invalid field " + f.ID + " must be alphanumeric/_")
+		}
+	}
+
+	// Set defaults
+	if ga.Logger == nil {
+		ga.Logger = log.Default()
+	}
+
 	buf.WriteString("Settings")
 	if ga.JwtKey == nil {
 		key, err := randomJWTKey()
@@ -148,17 +200,26 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 			panic("failed to generated random jwt key")
 		}
 		ga.JwtKey = key
-		buf.WriteString("\n > Random JwtKey: " + base64.StdEncoding.EncodeToString(key))
+		buf.WriteString("\n > JwtKey: RANDOM " + base64.StdEncoding.EncodeToString(key))
+	}
+	buf.WriteString("\n > AesKey: ")
+	if len(ga.AesKey) == 0 {
+		buf.WriteString("None (TOTPSecretKey will not be encrypted)")
+	} else {
+		buf.WriteString("Yes")
 	}
 	if ga.AlpineJSURL == "" {
 		ga.AlpineJSURL = "/alpine.js"
 	}
-	if ga.BasePath == "" {
-		ga.BasePath = "/auth"
-	} else if len(ga.BasePath) > 1 {
-		ga.BasePath = "/" + strings.Trim(ga.BasePath, "/")
+	if ga.Path.Base == "" {
+		ga.Path.Base = "/auth"
+	} else if len(ga.Path.Base) > 1 {
+		ga.Path.Base = "/" + strings.Trim(ga.Path.Base, "/")
 	}
-	buf.WriteString("\n > BasePath: " + ga.BasePath)
+	if ga.Path.Home == "" {
+		ga.Path.Home = "/"
+	}
+	buf.WriteString("\n > BasePath: " + ga.Path.Base)
 
 	buf.WriteString("\n > TokenProvider: ")
 	if ga.TokenProvider == nil {
@@ -174,7 +235,6 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	} else {
 		buf.WriteString("No")
 	}
-
 	buf.WriteString("\n > EmailField: ")
 	if ga.EmailFieldID != "" {
 		if ga.fieldByID(ga.EmailFieldID) == nil {
@@ -223,23 +283,6 @@ func (ga *GAuth) bind(r *http.Request, out interface{}) error {
 		return err
 	}
 	return nil
-}
-
-func (ga *GAuth) validInput(w http.ResponseWriter, data map[string]string) bool {
-	p := make(map[string]string)
-	for _, field := range ga.AccountFields {
-		if field.Validate != nil {
-			err := field.Validate(data[field.ID])
-			if err != nil {
-				p[field.ID] = err.Error()
-			}
-		}
-	}
-	if len(p) > 0 {
-		ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "validation", Data: p})
-		return false
-	}
-	return true
 }
 
 func (ga *GAuth) writeJSON(status int, w http.ResponseWriter, resp interface{}) {
