@@ -8,6 +8,18 @@ import (
 )
 
 func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		fc := ga.formConfig()
+		fc.Fields = ga.registerFields()
+		if err := form.Render(w, "register", fc); err != nil {
+			ga.internalError(w, err)
+		}
+		return
+	}
+	if r.Method != http.MethodPost {
+		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+		return
+	}
 	var req map[string]string
 	if err := ga.bind(r, &req); err != nil {
 		ga.internalError(w, err)
@@ -71,12 +83,4 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ga.writeJSON(http.StatusOK, w, "OK")
-}
-
-func (ga *GAuth) renderRegisterHandler(w http.ResponseWriter, r *http.Request) {
-	fc := ga.formConfig()
-	fc.Fields = ga.registerFields()
-	if err := form.Render(w, "register", fc); err != nil {
-		ga.internalError(w, err)
-	}
 }

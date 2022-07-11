@@ -15,6 +15,10 @@ type (
 		ConfirmEmail() (subject string, parts []Part)
 	}
 
+	UpdateEmail interface {
+		UpdateEmail() (subject string, parts []Part)
+	}
+
 	ResetPassword interface {
 		ResetPassword() (subject string, parts []Part)
 	}

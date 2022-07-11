@@ -243,20 +243,18 @@ footer {
     opacity:.5;
 }
 .logo {
-    margin: 2rem;
-    border-radius: 15%;
     font-weight: 100;
-    font-size: 2rem;
+    font-size: 1.5rem;
     padding: 1rem;
     display: flex;
     flex-direction: row;
-    text-align: center;
+    text-align: left;
     align-items: center;
 }
-.logo > img {
-    background-color:var(--primary-inverse);
-    width: 100px;
-    height: 100px;
+.logo img {
+    margin: 0 1rem 0 1rem;
+    width: 70px;
+    height: 70px;
 }
 .nav-panel {
     display: flex;
@@ -332,7 +330,13 @@ pre {
         width: 800px;
     }
     .logo {
+        font-size: 2rem;
         flex-direction: column;
+        text-align: center;
+    }
+    .logo img {
+        width: 100px;
+        height: 100px;
     }
     .sidebar {
         flex-direction: column-reverse;

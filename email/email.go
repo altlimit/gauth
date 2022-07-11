@@ -75,3 +75,11 @@ func (e *Data) Parse(data map[string]string) error {
 	e.HTMLContent = buf.String()
 	return nil
 }
+
+func (e *Data) ReplaceLink(link string) {
+	for k, v := range e.Data {
+		if v.URL == "{link}" {
+			e.Data[k].URL = link
+		}
+	}
+}

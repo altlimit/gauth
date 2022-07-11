@@ -18,9 +18,11 @@ import (
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/email"
 	"github.com/altlimit/gauth/form"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 const (
+	FieldActiveID        = "active"
 	FieldTOTPSecretID    = "totpsecret"
 	FieldRecoveryCodesID = "recoverycodes"
 	FieldTermsID         = "terms"
@@ -32,7 +34,7 @@ type (
 		// AccountProvider must be implemented for saving your user and notifications
 		AccountProvider AccountProvider
 		// Customize your access token claims
-		TokenProvider TokenProvider
+		ClaimsProvider ClaimsProvider
 
 		// Login/register/settings page fields
 		AccountFields []*form.Field
@@ -118,27 +120,32 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[len(ga.Path.Base):]
 	switch path {
 	case ga.Path.Login:
-		if r.Method == http.MethodPost {
-			ga.loginHandler(w, r)
-		} else if r.Method == http.MethodGet {
-			ga.renderLoginHandler(w, r)
-		}
+		ga.loginHandler(w, r)
 	case ga.Path.Register:
-		if r.Method == http.MethodPost {
-			ga.registerHandler(w, r)
-		} else if r.Method == http.MethodGet {
-			ga.renderRegisterHandler(w, r)
-		}
+		ga.registerHandler(w, r)
 	case ga.Path.Refresh:
-		if r.Method == http.MethodGet {
-			ga.refreshHandler(w, r)
-		}
+		ga.refreshHandler(w, r)
+	case ga.Path.Account:
+		ga.accountHandler(w, r)
 	case "/email-template":
 		ga.emailHandler(w, r)
 	case "/alpine.js":
 		form.RenderAlpineJS(w, r)
 	case "/client.js":
 		form.RenderClientJS(w, r)
+	}
+}
+
+func (ga *GAuth) emailData() *email.Data {
+	return &email.Data{
+		HeaderLabel:    ga.Brand.AppName,
+		HeaderURL:      ga.Brand.AppURL,
+		FooterLabel:    ga.Brand.AppName,
+		FooterURL:      ga.Brand.AppURL,
+		Primary:        ga.Brand.Primary,
+		PrimaryInverse: ga.Brand.PrimaryInverse,
+		Accent:         ga.Brand.Accent,
+		Neutral:        ga.Brand.Neutral,
 	}
 }
 
@@ -200,6 +207,9 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		if !validIDRe.MatchString(f.ID) {
 			panic("invalid field " + f.ID + " must be alphanumeric/_")
 		}
+		if f.ID == FieldActiveID || f.ID == FieldTOTPSecretID || f.ID == FieldRecoveryCodesID || f.ID == FieldTermsID {
+			panic("field " + f.ID + " is built-in")
+		}
 	}
 
 	// Set defaults
@@ -235,12 +245,11 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 	buf.WriteString("\n > BasePath: " + ga.Path.Base)
 
-	buf.WriteString("\n > TokenProvider: ")
-	if ga.TokenProvider == nil {
-		buf.WriteString("Built-In")
-		ga.TokenProvider = &DefaultTokenProvider{}
+	buf.WriteString("\n > ClaimsProvider: ")
+	if ga.ClaimsProvider == nil {
+		buf.WriteString("No")
 	} else {
-		buf.WriteString("Custom")
+		buf.WriteString("Yes")
 	}
 	buf.WriteString("\n > Send Email: ")
 	if es, ok := ga.AccountProvider.(email.Sender); ok {
@@ -371,4 +380,34 @@ func (ga *GAuth) realIP(r *http.Request) string {
 	}
 	ra, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return ra
+}
+
+func (ga *GAuth) headerToken(r *http.Request) string {
+	auth := strings.Split(r.Header.Get("Authorization"), " ")
+	if len(auth) == 2 && strings.ToLower(auth[0]) == "bearer" {
+		return auth[1]
+	}
+	return ""
+}
+
+func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
+	claims := make(map[string]string)
+	token, err := jwt.Parse(t, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return ga.JwtKey, nil
+	})
+	if err != nil {
+		err = fmt.Errorf("gauth.verifyToken error %v", err)
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		for k, v := range claims {
+			if vs, ok := v.(string); ok {
+				claims[k] = vs
+			}
+		}
+	}
+	return claims, err
 }

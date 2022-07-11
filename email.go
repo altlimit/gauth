@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	actionVerify = "verify"
+	actionVerify      = "verify"
+	actionEmailUpdate = "emailupdate"
 )
 
 func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +32,8 @@ func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) 
 		switch t {
 		case "emailVerifyMessage":
 			ed, err = ga.emailVerifyMessage(req)
+		case "emailUpdateMessage":
+			ed, err = ga.emailUpdateMessage(req)
 		}
 		if err != nil {
 			return err
@@ -48,32 +51,28 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 
 	refreshToken := jwt.New(jwt.SigningMethodHS256)
 	claims := refreshToken.Claims.(jwt.MapClaims)
-	claims["sub"] = d[ga.EmailFieldID]
+	claims["sub"] = d[ga.IdentityFieldID]
 	claims["act"] = actionVerify
+	// todo make this configurable
 	claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
 	tok, err := refreshToken.SignedString(ga.JwtKey)
 	if err != nil {
 		return nil, fmt.Errorf("emailVerifyMessage: SignedString error %v", err)
 	}
 
-	ed := &email.Data{
-		HeaderLabel:    ga.Brand.AppName,
-		HeaderURL:      ga.Brand.AppURL,
-		FooterLabel:    ga.Brand.AppName,
-		FooterURL:      ga.Brand.AppURL,
-		Primary:        ga.Brand.Primary,
-		PrimaryInverse: ga.Brand.PrimaryInverse,
-		Accent:         ga.Brand.Accent,
-		Neutral:        ga.Brand.Neutral,
-		Subject:        "Verify Your Email",
-		Data: []email.Part{
-			{P: "Click the link below to verify your email."},
-			{URL: ga.Brand.AppURL + ga.Path.Login + "?verify=" + tok, Label: "Verify"},
-		},
+	link := ga.Brand.AppURL + ga.Path.Login + "?verify=" + tok
+	ed := ga.emailData()
+	ed.Subject = "Verify Your Email"
+	ed.Data = []email.Part{
+		{P: "Click the link below to verify your email."},
+		{URL: link, Label: "Verify"},
 	}
 
 	if evm, ok := ga.AccountProvider.(email.ConfirmEmail); ok {
 		ed.Subject, ed.Data = evm.ConfirmEmail()
+		if ed.Subject != "" {
+			ed.ReplaceLink(link)
+		}
 	}
 
 	// empty subject to skip email
@@ -83,6 +82,46 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 
 	if err := ed.Parse(d); err != nil {
 		return nil, fmt.Errorf("ga.emailVerifyMessage: error %v", err)
+	}
+	return ed, nil
+}
+
+func (ga *GAuth) emailUpdateMessage(d map[string]string) (*email.Data, error) {
+
+	refreshToken := jwt.New(jwt.SigningMethodHS256)
+	claims := refreshToken.Claims.(jwt.MapClaims)
+	claims["sub"] = d[ga.IdentityFieldID]
+	claims["act"] = actionEmailUpdate
+	claims["email"] = d[ga.EmailFieldID]
+	// todo make this configurable
+	claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
+	tok, err := refreshToken.SignedString(ga.JwtKey)
+	if err != nil {
+		return nil, fmt.Errorf("emailVerifyMessage: SignedString error %v", err)
+	}
+
+	link := ga.Brand.AppURL + ga.Path.Login + "?verify=" + tok
+	ed := ga.emailData()
+	ed.Subject = "Confirm Email Update"
+	ed.Data = []email.Part{
+		{P: "Click the link below to verify your email."},
+		{URL: link, Label: "Verify"},
+	}
+
+	if evm, ok := ga.AccountProvider.(email.UpdateEmail); ok {
+		ed.Subject, ed.Data = evm.UpdateEmail()
+		if ed.Subject != "" {
+			ed.ReplaceLink(link)
+		}
+	}
+
+	// empty subject to skip email
+	if ed.Subject == "" {
+		return nil, nil
+	}
+
+	if err := ed.Parse(d); err != nil {
+		return nil, fmt.Errorf("ga.emailUpdateMessage: error %v", err)
 	}
 	return ed, nil
 }

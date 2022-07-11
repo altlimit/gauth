@@ -12,6 +12,22 @@ import (
 )
 
 func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		fc := ga.formConfig()
+		fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
+		// todo magic login link
+		if ga.PasswordFieldID != "" {
+			fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
+		}
+		if err := form.Render(w, "login", fc); err != nil {
+			ga.internalError(w, err)
+		}
+		return
+	}
+	if r.Method != http.MethodPost {
+		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+		return
+	}
 	var req map[string]string
 	if err := ga.bind(r, &req); err != nil {
 		ga.internalError(w, err)
@@ -60,20 +76,15 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// todo if totpsecret != "" then check against code
 
-	sub, err := ga.TokenProvider.IdentityRefreshToken(ctx, identity)
-	if err != nil {
-		ga.internalError(w, err)
-		return
-	}
+	claims := new(jwt.StandardClaims)
 	expire := time.Hour * 24
 	if _, ok := req["remember"]; ok {
 		expire = time.Hour * 24 * 7
 	}
 	expiry := time.Now().Add(expire)
+	claims.ExpiresAt = expiry.Unix()
 	refreshToken := jwt.New(jwt.SigningMethodHS256)
-	claims := refreshToken.Claims.(jwt.MapClaims)
-	claims["sub"] = sub
-	claims["exp"] = expiry.Unix()
+	claims.Subject = identity
 	tok, err := refreshToken.SignedString(ga.JwtKey)
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("loginHandler: SignedString error %v", err))
@@ -94,16 +105,17 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 
-}
-
-func (ga *GAuth) renderLoginHandler(w http.ResponseWriter, r *http.Request) {
-	fc := ga.formConfig()
-	fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
-	// todo magic login link
-	if ga.PasswordFieldID != "" {
-		fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
+	claims := make(jwt.MapClaims)
+	expire := time.Hour * 2
+	claims["sub"] = ""
+	claims["exp"] = time.Now().Add(expire).Unix()
+	accessToken := jwt.New(jwt.SigningMethodHS256)
+	tok, err := accessToken.SignedString(ga.JwtKey)
+	if err != nil {
+		ga.internalError(w, fmt.Errorf("refreshHandler: SignedString error %v", err))
+		return
 	}
-	if err := form.Render(w, "login", fc); err != nil {
-		ga.internalError(w, err)
-	}
+	ga.writeJSON(http.StatusOK, w, map[string]string{
+		"access_token": tok,
+	})
 }
