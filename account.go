@@ -36,16 +36,16 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid token"})
 			return
 		}
-
-		if claims["act"] == actionVerify && len(claims["sub"]) > 0 {
-			data, err := ga.AccountProvider.IdentityLoad(ctx, claims["sub"])
+		uid := claims["sub"]
+		if claims["act"] == actionVerify && len(uid) > 0 {
+			data, err := ga.AccountProvider.IdentityLoad(ctx, uid)
 			if err == ErrAccountNotFound {
 				ga.writeJSON(http.StatusNotFound, w, errorResponse{Error: "account not found"})
 				return
 			}
 			if err == ErrAccountNotActive {
 				data[FieldActiveID] = "1"
-				if err := ga.AccountProvider.IdentitySave(ctx, data); err != nil {
+				if _, err := ga.AccountProvider.IdentitySave(ctx, uid, data); err != nil {
 					ga.internalError(w, err)
 					return
 				}

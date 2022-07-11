@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strings"
+	"strconv"
 	"sync"
 
 	"github.com/altlimit/gauth"
@@ -12,58 +12,103 @@ import (
 )
 
 type (
-	datastoreProvider struct {
+	memoryProvider struct {
 	}
 
 	User struct {
-		ID       int64
-		Name     string
-		Password string
-		Email    string
-		Active   bool
+		Name          string
+		Password      string
+		Email         string
+		Active        bool
+		TotpSecretKey string
+		RecoveryCodes string
 	}
 )
 
 var (
-	users = make(map[string]User)
+	users = make(map[string]*User)
 	lock  sync.Mutex
 )
 
-func (dp *datastoreProvider) IdentityLoad(ctx context.Context, id string) (map[string]string, error) {
+func (mp *memoryProvider) IdentityUID(ctx context.Context, id string) (uid string, err error) {
 	lock.Lock()
 	defer lock.Unlock()
-	u, ok := users[id]
+	for k, v := range users {
+		if v.Email == id {
+			if !v.Active {
+				return "", gauth.ErrAccountNotActive
+			}
+			return k, nil
+		}
+	}
+	return "", gauth.ErrAccountNotFound
+}
+
+func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (map[string]string, error) {
+	lock.Lock()
+	defer lock.Unlock()
+	u, ok := users[uid]
 	if !ok {
 		return nil, gauth.ErrAccountNotFound
 	}
 	data := map[string]string{
-		"name":     u.Name,
-		"password": u.Password,
-		"email":    u.Email,
+		"name":                     u.Name,
+		"password":                 u.Password,
+		"email":                    u.Email,
+		gauth.FieldActiveID:        "0",
+		gauth.FieldTOTPSecretID:    u.TotpSecretKey,
+		gauth.FieldRecoveryCodesID: u.RecoveryCodes,
+	}
+	if u.Active {
+		data[gauth.FieldActiveID] = "1"
 	}
 	return data, nil
 }
-func (dp *datastoreProvider) IdentitySave(ctx context.Context, data map[string]string) error {
+func (mp *memoryProvider) IdentitySave(ctx context.Context, uid string, data map[string]string) (string, error) {
 	lock.Lock()
 	defer lock.Unlock()
-	id := strings.ToLower(data["email"])
-	u, ok := users[id]
-	if !ok {
+	var u *User
+	if uid == "" {
 		// create user
-		u = User{Active: false}
+		u = &User{Active: false}
+		uid = strconv.Itoa(len(users) + 1)
+	} else {
+		u = users[uid]
 	}
 	u.Email = data["email"]
 	u.Name = data["name"]
 	u.Password = data["password"]
-	users[id] = u
-	return nil
+	// check for built-in fields and update
+	if v, ok := data[gauth.FieldActiveID]; ok {
+		u.Active = v == "1"
+	}
+	if v, ok := data[gauth.FieldTOTPSecretID]; ok {
+		u.TotpSecretKey = v
+	}
+	if v, ok := data[gauth.FieldRecoveryCodesID]; ok {
+		u.RecoveryCodes = v
+	}
+	users[uid] = u
+	return uid, nil
 }
-func (dp *datastoreProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
+func (mp *memoryProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
 	log.Println("ToEmail", toEmail, "\nSubject", subject, "\nTextBody: ", textBody)
 	return nil
 }
 
-// func (dp *datastoreProvider) ConfirmEmail() (string, []email.Part) {
+func (mp *memoryProvider) AccessTokenClaims(ctx context.Context, uid string) (interface{}, error) {
+	type roles struct {
+		Admin bool    `json:"admin"`
+		Roles []int64 `json:"role_ids"`
+	}
+
+	return roles{
+		Admin: false,
+		Roles: []int64{1, 2, 3},
+	}, nil
+}
+
+// func (mp *memoryProvider) ConfirmEmail() (string, []email.Part) {
 // 	return "Click Verification Link", []email.Part{
 // 		{P: "Test {name}"},
 // 		{URL: "{link}", Label: "BUTTON"},
@@ -72,7 +117,7 @@ func (dp *datastoreProvider) SendEmail(ctx context.Context, toEmail, subject, te
 
 func main() {
 	port := "8887"
-	ga := gauth.NewDefault(&datastoreProvider{})
+	ga := gauth.NewDefault(&memoryProvider{})
 	ga.Brand.AppName = "Demo Memory"
 	ga.Brand.LogoURL = "https://www.altlimit.com/logo.png"
 	ga.Brand.AppURL = "http://localhost:" + port

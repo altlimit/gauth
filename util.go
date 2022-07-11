@@ -1,7 +1,9 @@
 package gauth
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/mail"
 	"time"
@@ -98,4 +100,16 @@ func randomJWTKey() ([]byte, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+func structToMap(src interface{}) (map[string]interface{}, error) {
+	dst := new(map[string]interface{})
+	b, err := json.Marshal(src)
+	if err != nil {
+		return nil, fmt.Errorf("structToMap json.Marshal error %v", err)
+	}
+	if err := json.Unmarshal(b, dst); err != nil {
+		return nil, fmt.Errorf("structToMap json.Unmarshal error %v", err)
+	}
+	return *dst, nil
 }

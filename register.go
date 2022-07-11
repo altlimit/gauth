@@ -22,7 +22,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req map[string]string
 	if err := ga.bind(r, &req); err != nil {
-		ga.internalError(w, err)
+		ga.badError(w, err)
 		return
 	}
 
@@ -52,8 +52,8 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// check if identityField is unique
-	_, err := ga.AccountProvider.IdentityLoad(ctx, req[ga.IdentityFieldID])
-	if err == nil {
+	_, err := ga.AccountProvider.IdentityUID(ctx, req[ga.IdentityFieldID])
+	if err == nil || err == ErrAccountNotActive {
 		ga.validationError(w, ga.IdentityFieldID, "already registered")
 		return
 	} else if err != ErrAccountNotFound {
@@ -72,12 +72,13 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	if err := ga.AccountProvider.IdentitySave(ctx, req); err != nil {
+	uid, err := ga.AccountProvider.IdentitySave(ctx, "", req)
+	if err != nil {
 		ga.internalError(w, err)
 		return
 	}
 
-	if err := ga.sendMail(ctx, "emailVerifyMessage", req); err != nil {
+	if err := ga.sendMail(ctx, "emailVerifyMessage", uid, req); err != nil {
 		ga.internalError(w, err)
 		return
 	}

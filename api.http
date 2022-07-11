@@ -1,0 +1,30 @@
+@baseURL = http://localhost:8887/auth
+
+###
+
+POST {{baseURL}}/register
+
+{
+    "email": "a@a.a",
+    "name": "Tester",
+    "password": "P@ssw0rd",
+    "repassword": "P@ssw0rd",
+    "terms": "agree"
+}
+
+###
+
+POST {{baseURL}}/login
+
+{
+    "email": "a@a.a",
+    "password": "P@ssw0rd"
+}
+
+###
+
+POST {{baseURL}}/refresh
+
+{
+    "token": "a"
+}

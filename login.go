@@ -9,6 +9,7 @@ import (
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/form"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/pquerna/otp/totp"
 )
 
 func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +31,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req map[string]string
 	if err := ga.bind(r, &req); err != nil {
-		ga.internalError(w, err)
+		ga.badError(w, err)
 		return
 	}
 	ctx := r.Context()
@@ -56,7 +57,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	account, err := ga.AccountProvider.IdentityLoad(ctx, identity)
+	uid, err := ga.AccountProvider.IdentityUID(ctx, identity)
 	if err != nil {
 		if err == ErrAccountNotActive {
 			ga.validationError(w, ga.IdentityFieldID, "inactive")
@@ -69,22 +70,37 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
+	account, err := ga.AccountProvider.IdentityLoad(ctx, uid)
+	if err != nil {
+		ga.internalError(w, err)
+		return
+	}
 	if !validPassword(account[ga.PasswordFieldID], passwd) {
 		ga.validationError(w, ga.PasswordFieldID, "invalid")
 		return
 	}
 
-	// todo if totpsecret != "" then check against code
+	if totpSecret, ok := account[FieldTOTPSecretID]; ok && len(totpSecret) > 0 {
+		_, ok := req[FieldCodeID]
+		if !ok {
+			ga.validationError(w, FieldCodeID, "required")
+			return
+		}
+		if !totp.Validate(req[FieldCodeID], totpSecret) {
+			ga.validationError(w, FieldCodeID, "invalid")
+			return
+		}
+	}
 
-	claims := new(jwt.StandardClaims)
 	expire := time.Hour * 24
-	if _, ok := req["remember"]; ok {
+	if _, ok := req[FieldRememberID]; ok {
 		expire = time.Hour * 24 * 7
 	}
 	expiry := time.Now().Add(expire)
-	claims.ExpiresAt = expiry.Unix()
 	refreshToken := jwt.New(jwt.SigningMethodHS256)
-	claims.Subject = identity
+	claims := refreshToken.Claims.(jwt.MapClaims)
+	claims["exp"] = expiry.Unix()
+	claims["sub"] = uid
 	tok, err := refreshToken.SignedString(ga.JwtKey)
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("loginHandler: SignedString error %v", err))
@@ -92,7 +108,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// todo maybe make this a gauth config
 	http.SetCookie(w, &http.Cookie{
-		Name:     "rts",
+		Name:     RefreshCookieName,
 		Value:    tok,
 		Expires:  expiry,
 		HttpOnly: true,
@@ -104,12 +120,56 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if r.Method == http.MethodPost {
+		if err := ga.bind(r, &req); err != nil {
+			ga.internalError(w, err)
+			return
+		}
+	} else if r.Method == http.MethodGet {
+		c, err := r.Cookie(RefreshCookieName)
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+		req.Token = c.Value
+	} else {
+		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+		return
+	}
+	if req.Token == "" {
+		ga.writeJSON(http.StatusUnauthorized, w, nil)
+		return
+	}
 
-	claims := make(jwt.MapClaims)
+	claims, err := ga.tokenClaims(req.Token)
+	if err != nil {
+		ga.log("tokenClaims error", err)
+		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid token"})
+		return
+	}
+
 	expire := time.Hour * 2
-	claims["sub"] = ""
-	claims["exp"] = time.Now().Add(expire).Unix()
 	accessToken := jwt.New(jwt.SigningMethodHS256)
+	accessClaims := accessToken.Claims.(jwt.MapClaims)
+	accessClaims["sub"] = claims["sub"]
+	accessClaims["exp"] = time.Now().Add(expire).Unix()
+
+	if cp, ok := ga.AccountProvider.(ClaimsProvider); ok {
+		grants, err := cp.AccessTokenClaims(r.Context(), "")
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+		accessClaims["grants"], err = structToMap(grants)
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+	}
+
 	tok, err := accessToken.SignedString(ga.JwtKey)
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("refreshHandler: SignedString error %v", err))

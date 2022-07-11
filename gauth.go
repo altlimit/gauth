@@ -22,9 +22,12 @@ import (
 )
 
 const (
+	RefreshCookieName    = "rt"
 	FieldActiveID        = "active"
+	FieldCodeID          = "code"
 	FieldTOTPSecretID    = "totpsecret"
 	FieldRecoveryCodesID = "recoverycodes"
+	FieldRememberID      = "remember"
 	FieldTermsID         = "terms"
 )
 
@@ -341,6 +344,12 @@ func (ga *GAuth) internalError(w http.ResponseWriter, err error) {
 		map[string]string{"error": http.StatusText(http.StatusInternalServerError)})
 }
 
+func (ga *GAuth) badError(w http.ResponseWriter, err error) {
+	ga.log("BadRequestError", err)
+	ga.writeJSON(http.StatusBadRequest, w,
+		map[string]string{"error": http.StatusText(http.StatusBadRequest)})
+}
+
 func (ga *GAuth) validRecaptcha(secret string, response string, ip string) error {
 	type verify struct {
 		Success bool `json:"success"`
@@ -399,7 +408,7 @@ func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
 		return ga.JwtKey, nil
 	})
 	if err != nil {
-		err = fmt.Errorf("gauth.verifyToken error %v", err)
+		return nil, fmt.Errorf("gauth.verifyToken error %v", err)
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {

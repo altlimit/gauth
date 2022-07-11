@@ -19,11 +19,11 @@ func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "text/html")
 
-	ed, _ := ga.emailVerifyMessage(map[string]string{})
+	ed, _ := ga.emailVerifyMessage("", map[string]string{})
 	w.Write([]byte(ed.HTMLContent))
 }
 
-func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) error {
+func (ga *GAuth) sendMail(ctx context.Context, t string, uid string, req map[string]string) error {
 	if ga.emailSender != nil && ga.EmailFieldID != "" {
 		var (
 			ed  *email.Data
@@ -31,9 +31,9 @@ func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) 
 		)
 		switch t {
 		case "emailVerifyMessage":
-			ed, err = ga.emailVerifyMessage(req)
+			ed, err = ga.emailVerifyMessage(uid, req)
 		case "emailUpdateMessage":
-			ed, err = ga.emailUpdateMessage(req)
+			ed, err = ga.emailUpdateMessage(uid, req)
 		}
 		if err != nil {
 			return err
@@ -47,11 +47,11 @@ func (ga *GAuth) sendMail(ctx context.Context, t string, req map[string]string) 
 	return nil
 }
 
-func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
+func (ga *GAuth) emailVerifyMessage(uid string, d map[string]string) (*email.Data, error) {
 
 	refreshToken := jwt.New(jwt.SigningMethodHS256)
 	claims := refreshToken.Claims.(jwt.MapClaims)
-	claims["sub"] = d[ga.IdentityFieldID]
+	claims["uid"] = uid
 	claims["act"] = actionVerify
 	// todo make this configurable
 	claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
@@ -60,7 +60,7 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 		return nil, fmt.Errorf("emailVerifyMessage: SignedString error %v", err)
 	}
 
-	link := ga.Brand.AppURL + ga.Path.Login + "?verify=" + tok
+	link := ga.Brand.AppURL + ga.Path.Base + ga.Path.Login + "?verify=" + tok
 	ed := ga.emailData()
 	ed.Subject = "Verify Your Email"
 	ed.Data = []email.Part{
@@ -86,11 +86,11 @@ func (ga *GAuth) emailVerifyMessage(d map[string]string) (*email.Data, error) {
 	return ed, nil
 }
 
-func (ga *GAuth) emailUpdateMessage(d map[string]string) (*email.Data, error) {
+func (ga *GAuth) emailUpdateMessage(uid string, d map[string]string) (*email.Data, error) {
 
 	refreshToken := jwt.New(jwt.SigningMethodHS256)
 	claims := refreshToken.Claims.(jwt.MapClaims)
-	claims["sub"] = d[ga.IdentityFieldID]
+	claims["uid"] = uid
 	claims["act"] = actionEmailUpdate
 	claims["email"] = d[ga.EmailFieldID]
 	// todo make this configurable
