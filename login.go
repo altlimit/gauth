@@ -101,21 +101,35 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	claims := refreshToken.Claims.(jwt.MapClaims)
 	claims["exp"] = expiry.Unix()
 	claims["sub"] = uid
+
+	// a refresh token always have "cid" which either identifies a user
+	// generated client id or just "refresh" if it's not implemented
+	if cp, ok := ga.AccountProvider.(RefreshTokenProvider); ok {
+		cid, err := cp.CreateRefreshToken(ctx, uid)
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+		claims["cid"] = cid
+	} else {
+		claims["cid"] = "refresh"
+	}
 	tok, err := refreshToken.SignedString(ga.JwtKey)
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("loginHandler: SignedString error %v", err))
 		return
 	}
-	// todo maybe make this a gauth config
-	http.SetCookie(w, &http.Cookie{
-		Name:     RefreshCookieName,
-		Value:    tok,
-		Expires:  expiry,
-		HttpOnly: true,
-		Secure:   true,
-		MaxAge:   int(expire.Seconds()),
-		SameSite: http.SameSiteStrictMode,
-	})
+	if ga.RefreshTokenCookieName != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name:     ga.RefreshTokenCookieName,
+			Value:    tok,
+			Expires:  expiry,
+			HttpOnly: true,
+			Secure:   true,
+			MaxAge:   int(expire.Seconds()),
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 	ga.writeJSON(http.StatusOK, w, map[string]string{"refresh_token": tok})
 }
 
@@ -128,9 +142,13 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 			ga.internalError(w, err)
 			return
 		}
-	} else if r.Method == http.MethodGet {
-		c, err := r.Cookie(RefreshCookieName)
+	} else if r.Method == http.MethodGet && ga.RefreshTokenCookieName != "" {
+		c, err := r.Cookie(ga.RefreshTokenCookieName)
 		if err != nil {
+			if err == http.ErrNoCookie {
+				ga.writeJSON(http.StatusUnauthorized, w, nil)
+				return
+			}
 			ga.internalError(w, err)
 			return
 		}
@@ -147,18 +165,21 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	claims, err := ga.tokenClaims(req.Token)
 	if err != nil {
 		ga.log("tokenClaims error", err)
-		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid token"})
+		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
+		return
+	}
+	cid, ok := claims["cid"]
+	if !ok {
+		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
 		return
 	}
 
-	expire := time.Hour * 2
 	accessToken := jwt.New(jwt.SigningMethodHS256)
 	accessClaims := accessToken.Claims.(jwt.MapClaims)
 	accessClaims["sub"] = claims["sub"]
-	accessClaims["exp"] = time.Now().Add(expire).Unix()
-
-	if cp, ok := ga.AccountProvider.(ClaimsProvider); ok {
-		grants, err := cp.AccessTokenClaims(r.Context(), "")
+	accessClaims["exp"] = time.Now().Add(time.Hour).Unix()
+	if cp, ok := ga.AccountProvider.(AccessTokenProvider); ok {
+		grants, err := cp.CreateAccessToken(r.Context(), claims["sub"], cid)
 		if err != nil {
 			ga.internalError(w, err)
 			return
@@ -175,7 +196,13 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, fmt.Errorf("refreshHandler: SignedString error %v", err))
 		return
 	}
-	ga.writeJSON(http.StatusOK, w, map[string]string{
+	resp := map[string]interface{}{
 		"access_token": tok,
-	})
+		"token_type":   "Bearer",
+		"expires_in":   time.Hour.Seconds(),
+	}
+	if scope, ok := accessClaims["grants"]; ok {
+		resp["scope"] = scope
+	}
+	ga.writeJSON(http.StatusOK, w, resp)
 }

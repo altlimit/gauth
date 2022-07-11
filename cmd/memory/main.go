@@ -96,24 +96,24 @@ func (mp *memoryProvider) SendEmail(ctx context.Context, toEmail, subject, textB
 	return nil
 }
 
-func (mp *memoryProvider) AccessTokenClaims(ctx context.Context, uid string) (interface{}, error) {
-	type roles struct {
-		Admin bool    `json:"admin"`
+func (mp *memoryProvider) CreateRefreshToken(ctx context.Context, uid string) (string, error) {
+	// create this clientID in DB and list in user Authorized List
+	clientID := "cid123"
+	return clientID, nil
+}
+
+func (mp *memoryProvider) CreateAccessToken(ctx context.Context, uid string, refresh string) (interface{}, error) {
+	// we get refresh = cid123 here which we check against db if it's still a valid client and not yet revoked
+	type grants struct {
+		Owner bool    `json:"owner"`
 		Roles []int64 `json:"role_ids"`
 	}
 
-	return roles{
-		Admin: false,
+	return grants{
+		Owner: false,
 		Roles: []int64{1, 2, 3},
 	}, nil
 }
-
-// func (mp *memoryProvider) ConfirmEmail() (string, []email.Part) {
-// 	return "Click Verification Link", []email.Part{
-// 		{P: "Test {name}"},
-// 		{URL: "{link}", Label: "BUTTON"},
-// 	}
-// }
 
 func main() {
 	port := "8887"

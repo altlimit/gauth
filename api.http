@@ -14,6 +14,14 @@ POST {{baseURL}}/register
 
 ###
 
+POST {{baseURL}}/account
+
+{
+    "verify": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY3QiOiJ2ZXJpZnkiLCJleHAiOjE2NTc4MzMwOTIsInVpZCI6IjEifQ.Fd4qb-bmW_E1z94QvK28od5WjIt6N1quVavSWQRHjF8"
+}
+
+###
+
 POST {{baseURL}}/login
 
 {
@@ -23,8 +31,13 @@ POST {{baseURL}}/login
 
 ###
 
+GET {{baseURL}}/refresh
+Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc2NTk4MzIsInN1YiI6IjEifQ.hI5PeR5iQqJAemSOWv-d-2iP-T9fbc8NwESx1zt6bJ0; Expires=Tue, 12 Jul 2022 21:03:52 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
+
+###
+
 POST {{baseURL}}/refresh
 
 {
-    "token": "a"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc2NTk1OTEsInN1YiI6IjEifQ.rXh7yyz319CygLPHBk9-6oxRr8lD4LP8N60BBtEdueQ"
 }

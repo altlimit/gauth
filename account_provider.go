@@ -24,10 +24,17 @@ type (
 		IdentitySave(ctx context.Context, uid string, data map[string]string) (nuid string, err error)
 	}
 
-	ClaimsProvider interface {
-		// Implement this to add additional claims for your access token, by default
-		// "sub" will use your UID so this will just be extra claims under "grants"
-		AccessTokenClaims(ctx context.Context, uid string) (interface{}, error)
+	RefreshTokenProvider interface {
+		// Optionally implement this interface to customize your refresh token with a specific client ID or
+		// anything that can be identified that is linked to the UID so you can easily revoke it somewhere.
+		CreateRefreshToken(ctx context.Context, uid string) (string, error)
+	}
+
+	AccessTokenProvider interface {
+		// Optionally implement this to add additional claims under "grants"
+		// and add more role and access information for your token, this token is what's checked against
+		// your middleware.
+		CreateAccessToken(ctx context.Context, uid string, refresh string) (interface{}, error)
 	}
 )
 

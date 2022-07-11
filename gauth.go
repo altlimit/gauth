@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	RefreshCookieName    = "rt"
 	FieldActiveID        = "active"
 	FieldCodeID          = "code"
 	FieldTOTPSecretID    = "totpsecret"
@@ -34,8 +33,6 @@ type (
 	GAuth struct {
 		// AccountProvider must be implemented for saving your user and notifications
 		AccountProvider AccountProvider
-		// Customize your access token claims
-		ClaimsProvider ClaimsProvider
 
 		// Login/register/settings page fields
 		AccountFields []*form.Field
@@ -60,6 +57,9 @@ type (
 		JwtKey []byte
 		// AesKey will encrypt/decrypt your totpsecret
 		AesKey []byte
+
+		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
+		RefreshTokenCookieName string
 
 		// Page branding
 		Brand form.Brand
@@ -91,7 +91,6 @@ func NewDefault(ap AccountProvider) *GAuth {
 	}
 	ga = &GAuth{
 		AccountProvider: ap,
-
 		EmailFieldID:    "email",
 		IdentityFieldID: "email",
 		PasswordFieldID: "password",
@@ -114,6 +113,7 @@ func NewDefault(ap AccountProvider) *GAuth {
 			Neutral:        "#555454",
 			NeutralInverse: "#f1f1f1",
 		},
+		RefreshTokenCookieName: "rtoken",
 	}
 	return ga
 }
@@ -247,13 +247,6 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		ga.Path.Home = "/"
 	}
 	buf.WriteString("\n > BasePath: " + ga.Path.Base)
-
-	buf.WriteString("\n > ClaimsProvider: ")
-	if ga.ClaimsProvider == nil {
-		buf.WriteString("No")
-	} else {
-		buf.WriteString("Yes")
-	}
 	buf.WriteString("\n > Send Email: ")
 	if es, ok := ga.AccountProvider.(email.Sender); ok {
 		ga.emailSender = es
@@ -295,6 +288,12 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		buf.WriteString("Enabled")
 	} else {
 		buf.WriteString("Disabled")
+	}
+	buf.WriteString("\n > RefreshToken Set-Cookie: ")
+	if ga.RefreshTokenCookieName != "" {
+		buf.WriteString("Yes")
+	} else {
+		buf.WriteString("No")
 	}
 
 	if showInfo {
@@ -365,7 +364,7 @@ func (ga *GAuth) headerToken(r *http.Request) string {
 }
 
 func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
-	claims := make(map[string]string)
+	result := make(map[string]string)
 	token, err := jwt.Parse(t, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -379,9 +378,9 @@ func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		for k, v := range claims {
 			if vs, ok := v.(string); ok {
-				claims[k] = vs
+				result[k] = vs
 			}
 		}
 	}
-	return claims, err
+	return result, err
 }
