@@ -28,6 +28,9 @@ document.addEventListener('alpine:init', () => {
 		xhr.send(JSON.stringify(data));
     }
 
+	Alpine.store('recaptcha', {
+		value: null
+	});
 	Alpine.store('notify', {
 		alertId: 0,
 		alerts: [],
@@ -57,12 +60,23 @@ document.addEventListener('alpine:init', () => {
 				if (this.input.terms !== undefined) {
 					this.input.terms = this.input.terms ? "agree" : "";
 				}
+				if (window.grecaptcha) {
+					if (!Alpine.store("recaptcha").value) {
+						this.errors.recaptcha = "required";
+						return;
+					}
+					this.input.recaptcha = Alpine.store("recaptcha").value;
+				}
 				this.loading = true;
 				sendRequest("POST", location.pathname, this.input, function(r) {
 					console.log("Success", r);
 					this.loading = false;
 				}, function (err) {
 					this.loading = false;
+					Alpine.store("recaptcha").value = null;
+					if (window.grecaptcha) {
+						window.grecaptcha.reset(window.recaptcha);
+					}
 					if (err.error === "validation") {
 						this.errors = err.data;
 					} else {
@@ -73,4 +87,16 @@ document.addEventListener('alpine:init', () => {
 		}
 	});
 });
+
+window.recaptchaCallback = function() {
+	const recaptchaField = document.getElementById("recaptcha-field");
+	if (!recaptchaField) return;
+	window.recaptcha = grecaptcha.render(recaptchaField, {
+		sitekey: recaptchaField.dataset.key,
+		callback: function(resp) {
+			Alpine.store("recaptcha").value = resp;
+			console.log("Recaptcha", resp);
+		},
+	});
+};
 `

@@ -9,9 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 
@@ -55,8 +53,9 @@ type (
 
 		// By default this uses embedded alpineJS
 		AlpineJSURL string
-		// Provide a secret to activate recaptcha in register/login(only on 3rd try+ for login)
-		RecaptchaSecret string
+		// Provide a secret to activate recaptcha in register
+		RecaptchaSiteKey string
+		RecaptchaSecret  string
 		// JwtKey used for registration and token login
 		JwtKey []byte
 		// AesKey will encrypt/decrypt your totpsecret
@@ -157,6 +156,7 @@ func (ga *GAuth) formConfig() *form.Config {
 		Brand:       ga.Brand,
 		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
+		Recaptcha:   ga.RecaptchaSiteKey,
 	}
 }
 
@@ -290,6 +290,12 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		ga.rateLimiter = cache.NewMemoryRateLimit()
 		buf.WriteString("InMemory (implement cache.RateLimiter)")
 	}
+	buf.WriteString("\n > Recaptcha: ")
+	if ga.RecaptchaSecret != "" && ga.RecaptchaSiteKey != "" {
+		buf.WriteString("Enabled")
+	} else {
+		buf.WriteString("Disabled")
+	}
 
 	if showInfo {
 		ga.log(buf.String())
@@ -348,47 +354,6 @@ func (ga *GAuth) badError(w http.ResponseWriter, err error) {
 	ga.log("BadRequestError", err)
 	ga.writeJSON(http.StatusBadRequest, w,
 		map[string]string{"error": http.StatusText(http.StatusBadRequest)})
-}
-
-func (ga *GAuth) validRecaptcha(secret string, response string, ip string) error {
-	type verify struct {
-		Success bool `json:"success"`
-	}
-	hc := &http.Client{}
-	resp, err := hc.PostForm("https://www.google.com/recaptcha/api/siteverify", url.Values{
-		"secret":   {secret},
-		"response": {response},
-		"remoteip": {ip},
-	})
-
-	if err != nil {
-		return fmt.Errorf("validRecaptcha: PostForm error %v", err)
-	}
-
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	var v verify
-	if err := json.Unmarshal(body, &v); err != nil {
-		return err
-	}
-	if !v.Success {
-		return errors.New("failed recaptcha")
-	}
-	return nil
-}
-
-func (ga *GAuth) realIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Appengine-User-Ip"); ip != "" {
-		return ip
-	}
-	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-		return strings.Split(ip, ", ")[0]
-	}
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-	ra, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return ra
 }
 
 func (ga *GAuth) headerToken(r *http.Request) string {

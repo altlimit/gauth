@@ -43,8 +43,8 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if ga.RecaptchaSecret != "" {
-		if err := ga.validRecaptcha(ga.RecaptchaSecret, req["recaptcha"], ga.realIP(r)); err != nil {
+	if ga.RecaptchaSecret != "" && ga.RecaptchaSiteKey != "" {
+		if err := validRecaptcha(ga.RecaptchaSecret, req["recaptcha"], realIP(r)); err != nil {
 			ga.validationError(w, "recaptcha", "verification failed")
 			return
 		}
@@ -61,7 +61,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ga.rateLimiter.RateLimit(ctx, ga.realIP(r), 3, time.Hour*1); err != nil {
+	if err := ga.rateLimiter.RateLimit(ctx, realIP(r), 3, time.Hour*1); err != nil {
 		ga.writeJSON(http.StatusTooManyRequests, w, errorResponse{Error: "Try again later"})
 		return
 	}

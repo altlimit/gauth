@@ -4,8 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
+	"net"
+	"net/http"
 	"net/mail"
+	"net/url"
+	"strings"
 	"time"
 	"unicode"
 
@@ -112,4 +117,45 @@ func structToMap(src interface{}) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("structToMap json.Unmarshal error %v", err)
 	}
 	return *dst, nil
+}
+
+func validRecaptcha(secret string, response string, ip string) error {
+	type verify struct {
+		Success bool `json:"success"`
+	}
+	hc := &http.Client{}
+	resp, err := hc.PostForm("https://www.google.com/recaptcha/api/siteverify", url.Values{
+		"secret":   {secret},
+		"response": {response},
+		"remoteip": {ip},
+	})
+
+	if err != nil {
+		return fmt.Errorf("validRecaptcha: PostForm error %v", err)
+	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	var v verify
+	if err := json.Unmarshal(body, &v); err != nil {
+		return err
+	}
+	if !v.Success {
+		return errors.New("failed recaptcha")
+	}
+	return nil
+}
+
+func realIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Appengine-User-Ip"); ip != "" {
+		return ip
+	}
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		return strings.Split(ip, ", ")[0]
+	}
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	ra, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return ra
 }

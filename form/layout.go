@@ -386,6 +386,9 @@ pre {
 </style>
 <script src="{{.Path.Base}}/client.js"></script>
 <script defer src="{{.Path.Base}}{{.AlpineJSURL}}"></script>
+{{if .Recaptcha}}
+<script defer src="https://www.google.com/recaptcha/api.js?onload=recaptchaCallback&render=explicit"></script>
+{{end}}
 </head>
 
 <body>

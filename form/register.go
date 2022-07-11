@@ -30,6 +30,12 @@ var register = `{{define "content"}}
             <span class="help danger" x-show="errors.terms" x-text="errors.terms"></span>
         </div>
         {{end}}
+        {{if .Recaptcha}}
+        <div class="field">
+            <div id="recaptcha-field" data-key="{{.Recaptcha}}"></div>
+            <span class="help danger" x-show="errors.recaptcha" x-text="errors.recaptcha"></span>
+        </div>
+        {{end}}
         <div class="action-panel">
             <button type="submit" class="button">Register</button>
             <div class="list">

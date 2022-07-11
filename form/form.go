@@ -29,6 +29,7 @@ type (
 	ValidateFunc func(fieldID string, data map[string]string) error
 	Config       struct {
 		AlpineJSURL string
+		Recaptcha   string
 		Brand       Brand
 		Path        Path
 
