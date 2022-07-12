@@ -22,14 +22,20 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 	if tab == "" && len(tabs) > 0 {
 		tab = tabs[0]
 	}
-	fc.Title = tab + " Settings"
+	fc.Title = "Settings"
 	fc.Submit = "Save"
-	fc.Fields = fields[tab]
-	for _, tab := range tabs {
-		fc.Tabs = append(fc.Tabs, &form.Link{URL: "?tab=" + tab, Label: tab})
-	}
+	fc.Fields = fields
+	fc.Tab = tab
+	fc.Tabs = tabs
 
 	if r.Method == http.MethodGet {
+		if ga.isJson(r) {
+			ga.writeJSON(http.StatusOK, w, map[string]string{
+				"email": "a@a.a",
+			})
+			return
+		}
+
 		if err := form.Render(w, fc); err != nil {
 			ga.internalError(w, err)
 		}

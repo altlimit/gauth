@@ -185,6 +185,9 @@ input[type=checkbox]:checked:after {
 .help::first-letter {
     text-transform: capitalize;
 }
+a {
+    cursor: pointer;
+}
 .button {
     color: var(--primary-inverse);
     background-color: var(--primary);
@@ -425,12 +428,12 @@ pre {
 
 var nav = `
 {{ define "nav"}}
-<div class="nav-panel">
+<div class="nav-panel" x-data>
     <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
 
     <nav class="nav">
     {{range .Tabs}}
-        <a href="{{.URL}}">{{.Label}}</a>
+        <a class="pointer" @click="$store.nav.setTab('{{.}}')">{{.}}</a>
     {{end}}
     </nav>
 </div>

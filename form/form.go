@@ -31,8 +31,10 @@ type (
 		Title       string
 		Description string
 
+		Tab  string
+		Tabs []string
+
 		Links  []*Link
-		Tabs   []*Link
 		Fields []*Field
 		Terms  bool
 

@@ -107,7 +107,6 @@ func NewDefault(ap AccountProvider) *GAuth {
 		},
 		RefreshTokenCookieName: "rtoken",
 	}
-	ga.AccountFields = append(ga.AccountFields, &form.Field{ID: "repassword", Label: "Re-Type Password", Type: "password", Validate: ga.confirmPass, SettingsTab: "Password"})
 	return ga
 }
 
@@ -194,30 +193,35 @@ func (ga *GAuth) fieldByID(id string) *form.Field {
 	return nil
 }
 
-func (ga *GAuth) accountFields() ([]string, map[string][]*form.Field) {
+func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 	var tabs []string
-	mapFields := make(map[string][]*form.Field)
+	mapFields := make(map[string]bool)
+	var fields []*form.Field
 
-	// 2fa
 	tab := "2FA"
 	tabs = append(tabs, tab)
 
-	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldTOTPSecretID, Type: "hidden"})
-	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code"})
-	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldRecoveryCodesID, Type: "textarea", Label: "Generate Recovery Codes"})
+	fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "hidden", SettingsTab: tab})
+	fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})
+	fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "textarea", Label: "Generate Recovery Codes", SettingsTab: tab})
 
 	for _, f := range ga.AccountFields {
-		tab := strings.Split(f.SettingsTab, ",")[0]
+		tab = strings.Split(f.SettingsTab, ",")[0]
 		if tab != "" {
 			_, ok := mapFields[tab]
 			if !ok {
+				mapFields[tab] = true
 				tabs = append(tabs, tab)
 			}
-			mapFields[tab] = append(mapFields[tab], f)
+			fields = append(fields, f)
+
+			if f.ID == ga.PasswordFieldID {
+				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, Validate: ga.confirmPass, SettingsTab: f.SettingsTab})
+			}
 		}
 	}
 	sort.Strings(tabs)
-	return tabs, mapFields
+	return tabs, fields
 }
 
 func (ga *GAuth) registerFields() (fields []*form.Field) {
@@ -225,6 +229,10 @@ func (ga *GAuth) registerFields() (fields []*form.Field) {
 		// Accounts,only <-- meaning not included in register form
 		if !strings.Contains(f.SettingsTab, ",only") {
 			fields = append(fields, f)
+
+			if f.ID == ga.PasswordFieldID {
+				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, Validate: ga.confirmPass, SettingsTab: f.SettingsTab})
+			}
 		}
 	}
 	return

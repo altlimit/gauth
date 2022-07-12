@@ -3,9 +3,14 @@ package form
 var formTemplate = `{{define "content"}}
 <div class="container" x-data="form">
     <form class="form" @submit.prevent="submit">
-        <h1 class="title">{{.Title}}</h1>
+        <h1 class="title">
+            {{if .Tab}}
+                <span x-text="$store.nav.tab">{{.Tab}}</span>
+            {{end}}
+            {{.Title}}
+        </h1>
         {{range .Fields}}
-            <div class="field">
+            <div class="field" {{if $.Tabs}}x-show="$store.nav.isTab('{{.SettingsTab}}')"{{end}}>
                 <label for="{{.ID}}">{{.Label}}</label>
                 {{if eq .Type "select"}}
                     <select id="{{.ID}}" x-model="input.{{.ID}}">

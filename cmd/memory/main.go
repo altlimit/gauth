@@ -133,7 +133,7 @@ func main() {
 		&form.Field{ID: "question", Label: "Security Question", Type: "select", Validate: gauth.RequiredText, SettingsTab: "Security,only", Options: []form.Option{
 			{Label: "Pick a security question"},
 			{ID: "1", Label: "What is the name of your favorite pet?"},
-			{ID: "2", Label: "What is your mother's maiden name?<"},
+			{ID: "2", Label: "What is your mother's maiden name?"},
 		}},
 		&form.Field{ID: "answer", Label: "Answer", Type: "textarea", Validate: gauth.RequiredText, SettingsTab: "Security,only"},
 	)

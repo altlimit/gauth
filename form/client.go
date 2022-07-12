@@ -25,7 +25,7 @@ document.addEventListener('alpine:init', () => {
 				}
 			}
 		}.bind(this);
-		xhr.send(JSON.stringify(data));
+		xhr.send(data ? JSON.stringify(data) : undefined);
     }
 	const env = document.getElementById("env").dataset;
 	function actionUrl() {
@@ -52,6 +52,15 @@ document.addEventListener('alpine:init', () => {
 			}.bind({id: this.alertId}), 5000);
 		},
 	});
+	Alpine.store('nav', {
+		tab: document.querySelectorAll(".nav a.pointer").length ? document.querySelectorAll(".nav a.pointer")[0].innerText : null,
+		setTab: function (tab) {
+			this.tab = tab;
+		},
+		isTab: function(tab) {
+			return this.tab === tab.split(",")[0];
+		}
+	});
 
 	const query = {};
 	window.location.search.substring(1).split("&").map(function(s) {
@@ -74,6 +83,16 @@ document.addEventListener('alpine:init', () => {
 	}
 	Alpine.data('form', function() {
 		return {
+			init: function () {
+				if (location.pathname === env.base + env.account) {
+					const self = this;
+					sendRequest("GET", location.pathname, null, function(r) {
+						self.input = r;
+					}, function (err) {
+						Alpine.store('notify').alert("danger", err.error);
+					});
+				}
+			},
 			input: {},
 			hide: {},
 			errors: {},
