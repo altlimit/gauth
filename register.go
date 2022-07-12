@@ -35,15 +35,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vErrs := make(map[string]string)
-	for _, field := range ga.registerFields() {
-		if field.Validate != nil {
-			err := field.Validate(field.ID, req)
-			if err != nil {
-				vErrs[field.ID] = err.Error()
-			}
-		}
-	}
+	vErrs := ga.validateFields(ga.registerFields(), req)
 	if ga.Path.Terms != "" && req[FieldTermsID] != "agree" {
 		vErrs[FieldTermsID] = "required"
 	}
@@ -76,7 +68,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// we hash the password before we send to save
-	req[ga.PasswordFieldID], err = hashPassword(req[ga.PasswordFieldID], 13) // todo put cost in GAuth config
+	req[ga.PasswordFieldID], err = hashPassword(req[ga.PasswordFieldID], ga.BCryptCost)
 	if err != nil {
 		ga.internalError(w, err)
 		return
@@ -87,7 +79,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ga.sendMail(ctx, "emailVerifyMessage", uid, req); err != nil {
+	if err := ga.sendMail(ctx, actionVerify, uid, req); err != nil {
 		ga.internalError(w, err)
 		return
 	}

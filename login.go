@@ -15,27 +15,45 @@ import (
 func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		fc := ga.formConfig()
-		fc.Title = "Login"
-		fc.Submit = "Login"
+		var action string
+		if a, ok := r.URL.Query()["a"]; ok && len(a) > 0 {
+			action = a[0]
+		}
+
 		fc.Links = append(fc.Links, &form.Link{
 			URL:   ga.Path.Base + ga.Path.Register,
 			Label: "Register",
 		})
+
 		fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
-		if fp := r.URL.Query()["fp"]; len(fp) > 0 && fp[0] == "1" {
+		switch action {
+		case "resetlink":
 			fc.Title = "Forgot Password"
 			fc.Submit = "Send Reset Link"
 			fc.Links = append(fc.Links, &form.Link{
 				URL:   ga.Path.Base + ga.Path.Login,
 				Label: "Login",
 			})
-		} else if ga.PasswordFieldID != "" {
-			fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
-			if ga.emailSender != nil && ga.EmailFieldID != "" {
-				fc.Links = append(fc.Links, &form.Link{
-					URL:   "?fp=1",
-					Label: "Forgot Password",
-				})
+		case "reset":
+			fc.Fields = ga.resetFields()
+			fc.Title = "Reset Password"
+			fc.Submit = "Update"
+			fc.Links = append(fc.Links, &form.Link{
+				URL:   ga.Path.Base + ga.Path.Login,
+				Label: "Login",
+			})
+		default:
+			fc.Title = "Login"
+			fc.Submit = "Login"
+
+			if ga.PasswordFieldID != "" {
+				fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
+				if ga.emailSender != nil && ga.EmailFieldID != "" {
+					fc.Links = append(fc.Links, &form.Link{
+						URL:   "?a=resetlink",
+						Label: "Forgot Password",
+					})
+				}
 			}
 		}
 		if err := form.Render(w, fc); err != nil {
@@ -180,7 +198,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := ga.tokenStringClaims(req.Token)
+	claims, err := ga.tokenStringClaims(req.Token, "")
 	if err != nil {
 		ga.log("tokenStringClaims error", err)
 		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})

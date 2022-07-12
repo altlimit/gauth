@@ -390,8 +390,8 @@ pre {
 <script defer src="https://www.google.com/recaptcha/api.js?onload=recaptchaCallback&render=explicit"></script>
 {{end}}
 </head>
-
 <body>
+    <div id="env" data-base="{{.Path.Base}}" data-home="{{.Path.Home}}" data-account="{{.Path.Account}}" data-login="{{.Path.Login}}" data-register="{{.Path.Register}}" data-logout="{{.Path.Logout}}" data-refresh="{{.Path.Refresh}}"></div>
     <div class="backdrop"></div>
     <div class="workspace">
         <figure class="sidebar">

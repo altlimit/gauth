@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -166,4 +167,16 @@ func realIP(r *http.Request) string {
 	}
 	ra, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return ra
+}
+
+func unverifiedClaims(t string) (jwt.MapClaims, error) {
+	token, _, err := new(jwt.Parser).ParseUnverified(t, jwt.MapClaims{})
+	if err != nil {
+		return nil, fmt.Errorf("unverifiedClaims: parse error %v", err)
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		return claims, nil
+	}
+	return nil, errors.New("invalid claims")
 }

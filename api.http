@@ -48,3 +48,12 @@ POST {{baseURL}}/refresh
 GET {{homeURL}}/dashboard
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc3MjYwNjAsInN1YiI6IjEifQ.1FR9nUJC7C01xrWihn2WFqIZmL4gQrrWN6C9FYHfIzc
+
+###
+
+POST {{baseURL}}/action
+
+{
+    "action": "reset",
+    "email": "a@a.a"
+}

@@ -56,7 +56,8 @@ type (
 		// JwtKey used for registration and token login
 		JwtKey []byte
 		// AesKey will encrypt/decrypt your totpsecret
-		AesKey []byte
+		AesKey     []byte
+		BCryptCost int
 
 		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
 		RefreshTokenCookieName string
@@ -81,14 +82,6 @@ var (
 // NewDefault returns a sane default for GAuth, you can override properties
 func NewDefault(ap AccountProvider) *GAuth {
 	var ga *GAuth
-
-	confirmPass := func(fID string, d map[string]string) error {
-		s := d[fID]
-		if s != d[ga.PasswordFieldID] {
-			return errors.New("password do not match")
-		}
-		return nil
-	}
 	ga = &GAuth{
 		AccountProvider: ap,
 		EmailFieldID:    "email",
@@ -97,7 +90,6 @@ func NewDefault(ap AccountProvider) *GAuth {
 		AccountFields: []*form.Field{
 			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
 			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, SettingsTab: "Password"},
-			{ID: "repassword", Label: "Re-Type Password", Type: "password", Validate: confirmPass, SettingsTab: "Password"},
 		},
 		Path: form.Path{
 			Account:  "/account",
@@ -115,6 +107,7 @@ func NewDefault(ap AccountProvider) *GAuth {
 		},
 		RefreshTokenCookieName: "rtoken",
 	}
+	ga.AccountFields = append(ga.AccountFields, &form.Field{ID: "repassword", Label: "Re-Type Password", Type: "password", Validate: ga.confirmPass, SettingsTab: "Password"})
 	return ga
 }
 
@@ -141,7 +134,7 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ga *GAuth) Authorized(t string) (*Auth, error) {
-	claims, err := ga.tokenClaims(t)
+	claims, err := ga.tokenClaims(t, "")
 	if err != nil {
 		return nil, fmt.Errorf("tokenAuth: %v", err)
 	}
@@ -203,6 +196,34 @@ func (ga *GAuth) registerFields() (fields []*form.Field) {
 	return
 }
 
+func (ga *GAuth) confirmPass(fID string, d map[string]string) error {
+	s := d[fID]
+	if s != d[ga.PasswordFieldID] {
+		return errors.New("password do not match")
+	}
+	return nil
+}
+
+func (ga *GAuth) resetFields() (fields []*form.Field) {
+	pwField := ga.fieldByID(ga.PasswordFieldID)
+	confPw := &form.Field{ID: pwField.ID + "_confirm", Label: "Confirm " + pwField.Label, Type: pwField.Type, Validate: ga.confirmPass}
+	fields = append(fields, pwField, confPw)
+	return
+}
+
+func (ga *GAuth) validateFields(fields []*form.Field, input map[string]string) map[string]string {
+	vErrs := make(map[string]string)
+	for _, field := range fields {
+		if field.Validate != nil {
+			err := field.Validate(field.ID, input)
+			if err != nil {
+				vErrs[field.ID] = err.Error()
+			}
+		}
+	}
+	return vErrs
+}
+
 func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	var buf bytes.Buffer
 
@@ -242,6 +263,9 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	// Set defaults
 	if ga.Logger == nil {
 		ga.Logger = log.Default()
+	}
+	if ga.BCryptCost == 0 {
+		ga.BCryptCost = 13
 	}
 
 	buf.WriteString("Settings")
@@ -387,8 +411,8 @@ func (ga *GAuth) headerToken(r *http.Request) string {
 	return ""
 }
 
-func (ga *GAuth) tokenStringClaims(t string) (map[string]string, error) {
-	claims, err := ga.tokenClaims(t)
+func (ga *GAuth) tokenStringClaims(tok, key string) (map[string]string, error) {
+	claims, err := ga.tokenClaims(tok, key)
 	if err != nil {
 		return nil, fmt.Errorf("tokenStringClaims: %v", err)
 	}
@@ -401,12 +425,16 @@ func (ga *GAuth) tokenStringClaims(t string) (map[string]string, error) {
 	return result, nil
 }
 
-func (ga *GAuth) tokenClaims(t string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(t, func(token *jwt.Token) (interface{}, error) {
+func (ga *GAuth) tokenClaims(tok, key string) (jwt.MapClaims, error) {
+	token, err := jwt.Parse(tok, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return ga.JwtKey, nil
+		jwtKey := ga.JwtKey
+		if len(key) > 0 {
+			jwtKey = append(jwtKey, []byte(key)...)
+		}
+		return jwtKey, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gauth.tokenClaims parse error %v", err)

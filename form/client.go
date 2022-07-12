@@ -27,25 +27,9 @@ document.addEventListener('alpine:init', () => {
 		}.bind(this);
 		xhr.send(JSON.stringify(data));
     }
-
+	const env = document.getElementById("env").dataset;
 	function actionUrl() {
-		return location.pathname.substring(0, location.pathname.lastIndexOf("/") + 1) + "action";
-	}
-
-	const query = {};
-	window.location.search.substring(1).split("&").map(function(s) {
-		const vals = s.split("=");
-		query[vals[0]] = vals.length > 1 ? vals[1] : null;
-	});
-
-	if (query.verify) {
-		sendRequest("POST", actionUrl(), query, function(r) {
-			Alpine.store('notify').alert("success", "Email Verified");
-			this.loading = false;
-		}, function (err) {
-			this.loading = false;
-			Alpine.store('notify').alert("danger", err.error);
-		});
+		return env.base + "/action"
 	}
 
 	Alpine.store('recaptcha', {
@@ -70,6 +54,25 @@ document.addEventListener('alpine:init', () => {
 		},
 	});
 
+	const query = {};
+	window.location.search.substring(1).split("&").map(function(s) {
+		const vals = s.split("=");
+		query[vals[0]] = vals.length > 1 ? decodeURIComponent(vals[1]) : null;
+	});
+	if (query.a === "verify") {
+		sendRequest("POST", actionUrl(), {action: query.a, token: query.t}, function(r) {
+			Alpine.store('notify').alert("success", "Email Verified");
+			this.loading = false;
+		}, function (err) {
+			this.loading = false;
+			Alpine.store('notify').alert("danger", err.error);
+		});
+	}
+	const success = sessionStorage.getItem("alertSuccess");
+	if (success) {
+		Alpine.store('notify').alert("success", success);
+		sessionStorage.removeItem("alertSuccess");
+	}
 	Alpine.data('form', function() {
 		return {
 			input: {},
@@ -90,12 +93,20 @@ document.addEventListener('alpine:init', () => {
 				}
 				this.loading = true;
 				let path = location.pathname;
-				if (query.fp === "1") {
+				if (query.a) {
 					path = actionUrl();
-					this.input.forgot = "password";
+					this.input.action = query.a;
+					if (query.t) {
+						this.input.token = query.t;
+					}
 				}
 				sendRequest("POST", path, this.input, function(r) {
-					location.href = document.getElementById("home-link").href;
+					if (query.a === "resetlink" || query.a === "reset") {
+						location.href = "?";
+						sessionStorage.setItem("alertSuccess", query.a === "resetlink" ? "Reset link sent!" : "Password updated!");
+						return;
+					}
+					location.href = env.home;
 					this.loading = false;
 				}, function (err) {
 					this.loading = false;
