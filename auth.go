@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 )
 
 type (
@@ -31,8 +30,7 @@ func (a *Auth) Load(dst interface{}) error {
 func (ga *GAuth) AuthMiddleware(next http.Handler) http.Handler {
 	errorUnauthorized := func(w http.ResponseWriter, r *http.Request) {
 		msg := http.StatusText(http.StatusUnauthorized)
-		if strings.HasPrefix(r.Header.Get("Accept"), "application/json") ||
-			strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		if ga.isJson(r) {
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: msg})
 		} else {
 			http.Error(w, msg, http.StatusUnauthorized)

@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/altlimit/gauth/cache"
@@ -81,8 +82,7 @@ var (
 
 // NewDefault returns a sane default for GAuth, you can override properties
 func NewDefault(ap AccountProvider) *GAuth {
-	var ga *GAuth
-	ga = &GAuth{
+	ga := &GAuth{
 		AccountProvider: ap,
 		EmailFieldID:    "email",
 		IdentityFieldID: "email",
@@ -122,6 +122,8 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ga.refreshHandler(w, r)
 	case ga.Path.Account:
 		ga.accountHandler(w, r)
+	case "/qrkey":
+		ga.qrKeyHandler(w, r)
 	case "/action":
 		ga.actionHandler(w, r)
 	case "/email-template":
@@ -130,6 +132,13 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		form.RenderAlpineJS(w, r)
 	case "/client.js":
 		form.RenderClientJS(w, r)
+	default:
+		notFound := http.StatusText(http.StatusNotFound)
+		if ga.isJson(r) {
+			ga.writeJSON(http.StatusNotFound, w, errorResponse{Error: notFound})
+			return
+		}
+		http.Error(w, notFound, http.StatusNotFound)
 	}
 }
 
@@ -173,7 +182,6 @@ func (ga *GAuth) formConfig() *form.Config {
 		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
 		Recaptcha:   ga.RecaptchaSiteKey,
-		Flags:       make(map[string]interface{}),
 	}
 }
 
@@ -184,6 +192,32 @@ func (ga *GAuth) fieldByID(id string) *form.Field {
 		}
 	}
 	return nil
+}
+
+func (ga *GAuth) accountFields() ([]string, map[string][]*form.Field) {
+	var tabs []string
+	mapFields := make(map[string][]*form.Field)
+
+	// 2fa
+	tab := "2FA"
+	tabs = append(tabs, tab)
+
+	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldTOTPSecretID, Type: "hidden"})
+	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code"})
+	mapFields[tab] = append(mapFields[tab], &form.Field{ID: FieldRecoveryCodesID, Type: "textarea", Label: "Generate Recovery Codes"})
+
+	for _, f := range ga.AccountFields {
+		tab := strings.Split(f.SettingsTab, ",")[0]
+		if tab != "" {
+			_, ok := mapFields[tab]
+			if !ok {
+				tabs = append(tabs, tab)
+			}
+			mapFields[tab] = append(mapFields[tab], f)
+		}
+	}
+	sort.Strings(tabs)
+	return tabs, mapFields
 }
 
 func (ga *GAuth) registerFields() (fields []*form.Field) {
@@ -362,6 +396,11 @@ func (ga *GAuth) bind(r *http.Request, out interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func (ga *GAuth) isJson(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("Accept"), "application/json") ||
+		strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
 }
 
 func (ga *GAuth) writeJSON(status int, w http.ResponseWriter, resp interface{}) {

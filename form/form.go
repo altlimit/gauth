@@ -31,8 +31,8 @@ type (
 		Title       string
 		Description string
 
-		Flags  map[string]interface{}
 		Links  []*Link
+		Tabs   []*Link
 		Fields []*Field
 		Terms  bool
 

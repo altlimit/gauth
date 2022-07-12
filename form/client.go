@@ -31,7 +31,6 @@ document.addEventListener('alpine:init', () => {
 	function actionUrl() {
 		return env.base + "/action"
 	}
-
 	Alpine.store('recaptcha', {
 		value: null
 	});

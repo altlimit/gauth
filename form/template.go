@@ -47,16 +47,4 @@ var formTemplate = `{{define "content"}}
     </form>
 </div>
 {{end}}
-
-{{ define "nav"}}
-<div class="nav-panel">
-    <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
-
-    <nav class="nav">
-    {{range .Tabs}}
-        <a href="{{.URL}}">{{.Label}}</a>
-    {{end}}
-    </nav>
-</div>
-{{ end }}
 `

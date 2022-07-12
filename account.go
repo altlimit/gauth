@@ -1,27 +1,63 @@
 package gauth
 
 import (
+	"image/png"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/form"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
 func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
+	fc := ga.formConfig()
+	tabs, fields := ga.accountFields()
+	var tab string
+	if t, ok := r.URL.Query()["tab"]; ok && len(t) > 0 {
+		tab = t[0]
+	}
+	if tab == "" && len(tabs) > 0 {
+		tab = tabs[0]
+	}
+	fc.Title = tab + " Settings"
+	fc.Submit = "Save"
+	fc.Fields = fields[tab]
+	for _, tab := range tabs {
+		fc.Tabs = append(fc.Tabs, &form.Link{URL: "?tab=" + tab, Label: tab})
+	}
+
 	if r.Method == http.MethodGet {
-		fc := ga.formConfig()
-		fc.Fields = ga.AccountFields
 		if err := form.Render(w, fc); err != nil {
 			ga.internalError(w, err)
 		}
 		return
-	}
-	if r.Method != http.MethodPost {
-		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+	} else if r.Method == http.MethodPost {
+
 		return
 	}
+
+	ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+}
+
+func (ga *GAuth) qrKeyHandler(w http.ResponseWriter, r *http.Request) {
+	var keyURL string
+	if k, ok := r.URL.Query()["k"]; ok && len(k) > 0 {
+		keyURL = k[0]
+	}
+	key, err := otp.NewKeyFromURL(keyURL)
+	if err != nil {
+		ga.internalError(w, err)
+		return
+	}
+	img, err := key.Image(200, 200)
+	if err != nil {
+		ga.internalError(w, err)
+		return
+	}
+	png.Encode(w, img)
 }
 
 func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +72,20 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	switch req["action"] {
+	case "genKey":
+		key, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      ga.Brand.AppURL,
+			AccountName: "a@example.com",
+		})
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+		ga.writeJSON(http.StatusOK, w, map[string]string{
+			"secret": key.Secret(),
+			"url":    key.URL(),
+		})
+		return
 	case "verify":
 		claims, err := ga.tokenStringClaims(req["token"], "")
 		if err != nil || claims["act"] != actionVerify {
