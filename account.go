@@ -9,16 +9,19 @@ import (
 func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		fc := ga.formConfig()
-		fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
-		// todo magic login link
-		if ga.PasswordFieldID != "" {
-			fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
-		}
-		if err := form.Render(w, "account", fc); err != nil {
+		fc.Fields = ga.AccountFields
+		if err := form.Render(w, fc); err != nil {
 			ga.internalError(w, err)
 		}
 		return
 	}
+	if r.Method != http.MethodPost {
+		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+		return
+	}
+}
+
+func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
 		return
@@ -30,7 +33,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if vTok, ok := req["verify"]; ok {
-		claims, err := ga.tokenClaims(vTok)
+		claims, err := ga.tokenStringClaims(vTok)
 		if err != nil {
 			ga.log("verify token error", err)
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid token"})
@@ -56,4 +59,23 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "token has expired"})
 		return
 	}
+	if act, ok := req["forgot"]; ok && act == "password" {
+		identify := req[ga.IdentityFieldID]
+		if identify == "" {
+			ga.validationError(w, ga.IdentityFieldID, "required")
+			return
+		}
+		uid, err := ga.AccountProvider.IdentityUID(ctx, identify)
+		if err != nil && err != ErrAccountNotFound && err != ErrAccountNotActive {
+			ga.internalError(w, err)
+			return
+		}
+		if uid != "" {
+
+		}
+		ga.writeJSON(http.StatusOK, w, "OK")
+		return
+	}
+
+	ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "unknown action"})
 }

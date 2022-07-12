@@ -115,6 +115,12 @@ func (mp *memoryProvider) CreateAccessToken(ctx context.Context, uid string, ref
 	}, nil
 }
 
+func dashboardHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`Dashboard`))
+	})
+}
+
 func main() {
 	port := "8887"
 	ga := gauth.NewDefault(&memoryProvider{})
@@ -132,6 +138,7 @@ func main() {
 		&form.Field{ID: "answer", Label: "Answer", Type: "textarea", Validate: gauth.RequiredText, SettingsTab: "Security,only"},
 	)
 	http.Handle("/auth/", ga.MustInit(true))
+	http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
 	log.Println("Listening: " + port)
 	http.ListenAndServe(":"+port, nil)
 }

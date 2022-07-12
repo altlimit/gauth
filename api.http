@@ -1,4 +1,5 @@
-@baseURL = http://localhost:8887/auth
+@homeURL = http://localhost:8887
+@baseURL = {{homeURL}}/auth
 
 ###
 
@@ -14,10 +15,10 @@ POST {{baseURL}}/register
 
 ###
 
-POST {{baseURL}}/account
+POST {{baseURL}}/action
 
 {
-    "verify": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY3QiOiJ2ZXJpZnkiLCJleHAiOjE2NTc4MzMwOTIsInVpZCI6IjEifQ.Fd4qb-bmW_E1z94QvK28od5WjIt6N1quVavSWQRHjF8"
+    "verify": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY3QiOiJ2ZXJpZnkiLCJleHAiOjE2NTc4OTg4MjcsInVpZCI6IjEifQ.7vRjfS437v47ybPZiMqDIHYET6by4eUlRZjZ9hlaruQ"
 }
 
 ###
@@ -32,12 +33,18 @@ POST {{baseURL}}/login
 ###
 
 GET {{baseURL}}/refresh
-Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc2NTk4MzIsInN1YiI6IjEifQ.hI5PeR5iQqJAemSOWv-d-2iP-T9fbc8NwESx1zt6bJ0; Expires=Tue, 12 Jul 2022 21:03:52 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
+Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc3MjYwNjAsInN1YiI6IjEifQ.1FR9nUJC7C01xrWihn2WFqIZmL4gQrrWN6C9FYHfIzc; Expires=Wed, 13 Jul 2022 15:27:40 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
 
 ###
 
 POST {{baseURL}}/refresh
 
 {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc2NTk1OTEsInN1YiI6IjEifQ.rXh7yyz319CygLPHBk9-6oxRr8lD4LP8N60BBtEdueQ"
+    "token": ""
 }
+
+###
+
+GET {{homeURL}}/dashboard
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc3MjYwNjAsInN1YiI6IjEifQ.1FR9nUJC7C01xrWihn2WFqIZmL4gQrrWN6C9FYHfIzc

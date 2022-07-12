@@ -28,6 +28,26 @@ document.addEventListener('alpine:init', () => {
 		xhr.send(JSON.stringify(data));
     }
 
+	function actionUrl() {
+		return location.pathname.substring(0, location.pathname.lastIndexOf("/") + 1) + "action";
+	}
+
+	const query = {};
+	window.location.search.substring(1).split("&").map(function(s) {
+		const vals = s.split("=");
+		query[vals[0]] = vals.length > 1 ? vals[1] : null;
+	});
+
+	if (query.verify) {
+		sendRequest("POST", actionUrl(), query, function(r) {
+			Alpine.store('notify').alert("success", "Email Verified");
+			this.loading = false;
+		}, function (err) {
+			this.loading = false;
+			Alpine.store('notify').alert("danger", err.error);
+		});
+	}
+
 	Alpine.store('recaptcha', {
 		value: null
 	});
@@ -53,6 +73,7 @@ document.addEventListener('alpine:init', () => {
 	Alpine.data('form', function() {
 		return {
 			input: {},
+			hide: {},
 			errors: {},
 			loading: false,
 			submit(e) {
@@ -68,8 +89,13 @@ document.addEventListener('alpine:init', () => {
 					this.input.recaptcha = Alpine.store("recaptcha").value;
 				}
 				this.loading = true;
-				sendRequest("POST", location.pathname, this.input, function(r) {
-					console.log("Success", r);
+				let path = location.pathname;
+				if (query.fp === "1") {
+					path = actionUrl();
+					this.input.forgot = "password";
+				}
+				sendRequest("POST", path, this.input, function(r) {
+					location.href = document.getElementById("home-link").href;
 					this.loading = false;
 				}, function (err) {
 					this.loading = false;

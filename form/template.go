@@ -1,9 +1,9 @@
 package form
 
-var register = `{{define "content"}}
+var formTemplate = `{{define "content"}}
 <div class="container" x-data="form">
     <form class="form" @submit.prevent="submit">
-        <h1 class="title">Create An Account</h1>
+        <h1 class="title">{{.Title}}</h1>
         {{range .Fields}}
             <div class="field">
                 <label for="{{.ID}}">{{.Label}}</label>
@@ -21,7 +21,7 @@ var register = `{{define "content"}}
                 <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
             </div>
         {{end}}
-        {{if .Path.Terms}}
+        {{if .Terms}}
         <div class="field">
             <div class="checkbox">
                 <input id="agreeTerms" type="checkbox" value="agree" x-model="input.terms"/>
@@ -37,9 +37,11 @@ var register = `{{define "content"}}
         </div>
         {{end}}
         <div class="action-panel">
-            <button type="submit" class="button">Register</button>
+            <button type="submit" class="button">{{.Submit}}</button>
             <div class="list">
-                <a href="{{.Path.Base}}{{.Path.Login}}" class="link">&#x25B6; Login</a>
+            {{range .Links}}
+                <a href="{{.URL}}" class="link">&#x25B6; {{.Label}}</a>
+            {{end}}
             </div>
         </div>
     </form>
@@ -49,6 +51,12 @@ var register = `{{define "content"}}
 {{ define "nav"}}
 <div class="nav-panel">
     <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
+
+    <nav class="nav">
+    {{range .Tabs}}
+        <a href="{{.URL}}">{{.Label}}</a>
+    {{end}}
+    </nav>
 </div>
 {{ end }}
 `

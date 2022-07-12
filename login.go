@@ -15,12 +15,30 @@ import (
 func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		fc := ga.formConfig()
+		fc.Title = "Login"
+		fc.Submit = "Login"
+		fc.Links = append(fc.Links, &form.Link{
+			URL:   ga.Path.Base + ga.Path.Register,
+			Label: "Register",
+		})
 		fc.Fields = append(fc.Fields, ga.fieldByID(ga.IdentityFieldID))
-		// todo magic login link
-		if ga.PasswordFieldID != "" {
+		if fp := r.URL.Query()["fp"]; len(fp) > 0 && fp[0] == "1" {
+			fc.Title = "Forgot Password"
+			fc.Submit = "Send Reset Link"
+			fc.Links = append(fc.Links, &form.Link{
+				URL:   ga.Path.Base + ga.Path.Login,
+				Label: "Login",
+			})
+		} else if ga.PasswordFieldID != "" {
 			fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
+			if ga.emailSender != nil && ga.EmailFieldID != "" {
+				fc.Links = append(fc.Links, &form.Link{
+					URL:   "?fp=1",
+					Label: "Forgot Password",
+				})
+			}
 		}
-		if err := form.Render(w, "login", fc); err != nil {
+		if err := form.Render(w, fc); err != nil {
 			ga.internalError(w, err)
 		}
 		return
@@ -162,9 +180,9 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := ga.tokenClaims(req.Token)
+	claims, err := ga.tokenStringClaims(req.Token)
 	if err != nil {
-		ga.log("tokenClaims error", err)
+		ga.log("tokenStringClaims error", err)
 		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
 		return
 	}
@@ -189,6 +207,8 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 			ga.internalError(w, err)
 			return
 		}
+	} else {
+		accessClaims["grants"] = "access"
 	}
 
 	tok, err := accessToken.SignedString(ga.JwtKey)

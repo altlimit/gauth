@@ -5,7 +5,7 @@ var layout = `{{define "layout"}}
 <html>
 <head>
 <meta charset="utf-8">
-<title>{{.Title}}</title>
+<title>{{.Title}} - {{.Brand.AppName}}</title>
 <meta name="description" content="{{.Description}}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <style>
@@ -188,7 +188,7 @@ input[type=checkbox]:checked:after {
 .button {
     color: var(--primary-inverse);
     background-color: var(--primary);
-    padding: 1rem 2rem;
+    padding: 1rem 1.5rem;
     font-size: large;
     font-weight: 500;
     letter-spacing: 0.075rem;
@@ -426,7 +426,7 @@ pre {
 var nav = `
 {{ define "nav"}}
 <div class="nav-panel">
-    <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
+    <a href="{{.Path.Home}}" id="home-link" class="link back">&#x1F844; Home</a>
 </div>
 {{ end }}
 `

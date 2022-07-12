@@ -1,6 +1,7 @@
 package gauth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,6 +83,13 @@ func RequiredPassword(fID string, data map[string]string) error {
 	}
 	if !hasSpecial {
 		return errors.New("must have special characters")
+	}
+	return nil
+}
+
+func AuthFromContext(ctx context.Context) *Auth {
+	if auth, ok := ctx.Value(AuthKey).(*Auth); ok {
+		return auth
 	}
 	return nil
 }

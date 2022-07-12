@@ -13,6 +13,7 @@ import (
 const (
 	actionVerify      = "verify"
 	actionEmailUpdate = "emailupdate"
+	actionReset       = "reset"
 )
 
 func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +35,8 @@ func (ga *GAuth) sendMail(ctx context.Context, t string, uid string, req map[str
 			ed, err = ga.emailVerifyMessage(uid, req)
 		case "emailUpdateMessage":
 			ed, err = ga.emailUpdateMessage(uid, req)
+		case "emailResetMessage":
+			ed, err = ga.emailResetMessage(uid, req)
 		}
 		if err != nil {
 			return err
@@ -122,6 +125,45 @@ func (ga *GAuth) emailUpdateMessage(uid string, d map[string]string) (*email.Dat
 
 	if err := ed.Parse(d); err != nil {
 		return nil, fmt.Errorf("ga.emailUpdateMessage: error %v", err)
+	}
+	return ed, nil
+}
+
+func (ga *GAuth) emailResetMessage(uid string, d map[string]string) (*email.Data, error) {
+
+	refreshToken := jwt.New(jwt.SigningMethodHS256)
+	claims := refreshToken.Claims.(jwt.MapClaims)
+	claims["uid"] = uid
+	claims["act"] = actionReset
+	// todo make this configurable
+	claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
+	tok, err := refreshToken.SignedString(ga.JwtKey)
+	if err != nil {
+		return nil, fmt.Errorf("emailVerifyMessage: SignedString error %v", err)
+	}
+
+	link := ga.Brand.AppURL + ga.Path.Base + "/action?reset=" + tok
+	ed := ga.emailData()
+	ed.Subject = "Verify Your Email"
+	ed.Data = []email.Part{
+		{P: "Click the link below to verify your email."},
+		{URL: link, Label: "Verify"},
+	}
+
+	if evm, ok := ga.AccountProvider.(email.ConfirmEmail); ok {
+		ed.Subject, ed.Data = evm.ConfirmEmail()
+		if ed.Subject != "" {
+			ed.ReplaceLink(link)
+		}
+	}
+
+	// empty subject to skip email
+	if ed.Subject == "" {
+		return nil, nil
+	}
+
+	if err := ed.Parse(d); err != nil {
+		return nil, fmt.Errorf("ga.emailVerifyMessage: error %v", err)
 	}
 	return ed, nil
 }

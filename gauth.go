@@ -129,6 +129,8 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ga.refreshHandler(w, r)
 	case ga.Path.Account:
 		ga.accountHandler(w, r)
+	case "/action":
+		ga.actionHandler(w, r)
 	case "/email-template":
 		ga.emailHandler(w, r)
 	case "/alpine.js":
@@ -136,6 +138,27 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/client.js":
 		form.RenderClientJS(w, r)
 	}
+}
+
+func (ga *GAuth) Authorized(t string) (*Auth, error) {
+	claims, err := ga.tokenClaims(t)
+	if err != nil {
+		return nil, fmt.Errorf("tokenAuth: %v", err)
+	}
+	auth := &Auth{
+		UID: claims["sub"].(string),
+	}
+	if grants, ok := claims["grants"]; ok {
+		if g, ok := grants.(string); ok && g == "access" {
+			return auth, nil
+		}
+		auth.Grants, err = json.Marshal(grants)
+		if err != nil {
+			return nil, fmt.Errorf("tokenAuth: marshal error %v", err)
+		}
+		return auth, nil
+	}
+	return nil, errors.New("invalid access token")
 }
 
 func (ga *GAuth) emailData() *email.Data {
@@ -157,6 +180,7 @@ func (ga *GAuth) formConfig() *form.Config {
 		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
 		Recaptcha:   ga.RecaptchaSiteKey,
+		Flags:       make(map[string]interface{}),
 	}
 }
 
@@ -363,8 +387,21 @@ func (ga *GAuth) headerToken(r *http.Request) string {
 	return ""
 }
 
-func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
+func (ga *GAuth) tokenStringClaims(t string) (map[string]string, error) {
+	claims, err := ga.tokenClaims(t)
+	if err != nil {
+		return nil, fmt.Errorf("tokenStringClaims: %v", err)
+	}
 	result := make(map[string]string)
+	for k, v := range claims {
+		if vs, ok := v.(string); ok {
+			result[k] = vs
+		}
+	}
+	return result, nil
+}
+
+func (ga *GAuth) tokenClaims(t string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(t, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -372,15 +409,11 @@ func (ga *GAuth) tokenClaims(t string) (map[string]string, error) {
 		return ga.JwtKey, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("gauth.verifyToken error %v", err)
+		return nil, fmt.Errorf("gauth.tokenClaims parse error %v", err)
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		for k, v := range claims {
-			if vs, ok := v.(string); ok {
-				result[k] = vs
-			}
-		}
+		return claims, nil
 	}
-	return result, err
+	return nil, errors.New("gauth.tokenClaims not valid")
 }

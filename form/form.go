@@ -11,14 +11,9 @@ import (
 )
 
 var (
-	formTpl map[string]*template.Template
+	formTpl *template.Template
 
 	layouts = []string{layout, nav}
-	forms   = map[string]string{
-		"login":    login,
-		"register": register,
-		"account":  account,
-	}
 
 	alpineHash  string
 	clientHash  string
@@ -36,7 +31,17 @@ type (
 		Title       string
 		Description string
 
+		Flags  map[string]interface{}
+		Links  []*Link
 		Fields []*Field
+		Terms  bool
+
+		Submit string
+	}
+
+	Link struct {
+		URL   string
+		Label string
 	}
 
 	Field struct {
@@ -87,15 +92,15 @@ type (
 )
 
 func init() {
-	formTpl = make(map[string]*template.Template)
-	for k, v := range forms {
-		tpl := template.New(k)
-		for _, vv := range append(layouts, v) {
-			if _, err := tpl.Parse(vv); err != nil {
-				panic(err)
-			}
+	var err error
+	formTpl, err = template.New("form").Parse(formTemplate)
+	if err != nil {
+		panic(err)
+	}
+	for _, layout := range layouts {
+		if _, err := formTpl.Parse(layout); err != nil {
+			panic(err)
 		}
-		formTpl[k] = tpl
 	}
 
 	hasher := md5.New()
@@ -103,8 +108,8 @@ func init() {
 	alpineHash = hex.EncodeToString(hasher.Sum(nil))
 }
 
-func Render(w http.ResponseWriter, page string, c *Config) error {
-	return formTpl[page].ExecuteTemplate(w, "layout", c)
+func Render(w http.ResponseWriter, c *Config) error {
+	return formTpl.ExecuteTemplate(w, "layout", c)
 }
 
 func RenderAlpineJS(w http.ResponseWriter, r *http.Request) {
