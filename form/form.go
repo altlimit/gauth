@@ -86,7 +86,6 @@ type (
 		// paths for post and renderer
 		Account  string
 		Login    string
-		Logout   string
 		Refresh  string
 		Register string
 		Terms    string

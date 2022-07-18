@@ -14,12 +14,20 @@ document.addEventListener('alpine:init', () => {
 			return;
         }
 		xhr.setRequestHeader('Content-Type', 'application/json');
+		const accTok = sessionStorage.getItem("atok");
+		if (accTok) {
+			xhr.setRequestHeader('Authorization', 'Bearer ' + accTok)
+		}
 		xhr.onreadystatechange = function (oEvent) {
 			if (xhr.readyState === 4) {
 				this.sending = false;
-				const result = JSON.parse(xhr.responseText);
+				const result = xhr.responseText ? JSON.parse(xhr.responseText) : {};
 				if (result.error) {
-					onError(result);
+					if (xhr.status === 401 && accTok) {
+						sessionStorage.removeItem("atok");
+						if (location.pathname !== bPath(env.login)) toLogin();
+					}
+					onError(result, xhr.status);
 				} else {
 					onSuccess(result);
 				}
@@ -28,8 +36,36 @@ document.addEventListener('alpine:init', () => {
 		xhr.send(data ? JSON.stringify(data) : undefined);
     }
 	const env = document.getElementById("env").dataset;
-	function actionUrl() {
-		return env.base + "/action"
+	function bPath(p) {
+		return env.base + p;
+	}
+	function toLogin() {
+		location.href = bPath(env.login) + "?r=" + encodeURIComponent(location.pathname + location.search);
+	}
+	const actPath = bPath("/action");
+	function accessToken(onSuccess) {
+		try {
+			const aTok = sessionStorage.getItem("atok");
+			if (aTok) {
+				const payload = JSON.parse(window.atob(aTok.split('.')[1]))
+				if (new Date().getTime() / 1000 < payload.exp) {
+					onSuccess(aTok);
+					return;
+				}
+			}
+		} catch {
+			sessionStorage.removeItem("atok");
+		}
+		sendRequest("GET", bPath(env.refresh), null, function(r) {
+			sessionStorage.setItem("atok", r.access_token);
+			onSuccess(r.access_token);
+		}, function (err, code) {
+			if (code === 401 && location.pathname !== bPath(env.login)) {
+				toLogin();
+				return;
+			}
+			Alpine.store('notify').alert("danger", err.error);
+		});
 	}
 	Alpine.store('recaptcha', {
 		value: null
@@ -59,6 +95,15 @@ document.addEventListener('alpine:init', () => {
 		},
 		isTab: function(tab) {
 			return this.tab === tab.split(",")[0];
+		},
+		logout: function() {
+			sessionStorage.removeItem("atok");
+			sendRequest("DELETE", bPath(env.refresh), null, function() {
+				location.href = bPath(env.login);
+			}, function (err) {
+				sessionStorage.setItem("alertDanger", err.error);
+				location.href = bPath(env.login);
+			});
 		}
 	});
 
@@ -67,37 +112,65 @@ document.addEventListener('alpine:init', () => {
 		const vals = s.split("=");
 		query[vals[0]] = vals.length > 1 ? decodeURIComponent(vals[1]) : null;
 	});
-	if (query.a === "verify") {
-		sendRequest("POST", actionUrl(), {action: query.a, token: query.t}, function(r) {
-			Alpine.store('notify').alert("success", "Email Verified");
-			this.loading = false;
-		}, function (err) {
-			this.loading = false;
-			Alpine.store('notify').alert("danger", err.error);
-		});
-	}
-	const success = sessionStorage.getItem("alertSuccess");
-	if (success) {
-		Alpine.store('notify').alert("success", success);
-		sessionStorage.removeItem("alertSuccess");
+	const alerts = {
+		success: "alertSuccess",
+		danger: "alertDanger"
+	};
+	for (let k in alerts) {
+		const msg = sessionStorage.getItem(alerts[k]);
+		if (msg) {
+			Alpine.store('notify').alert(k, msg);
+			sessionStorage.removeItem(alerts[k]);
+		}
 	}
 	Alpine.data('form', function() {
 		return {
 			init: function () {
-				if (location.pathname === env.base + env.account) {
-					const self = this;
-					sendRequest("GET", location.pathname, null, function(r) {
-						self.input = r;
+				const self = this;
+				if (query.a === "verify") {
+					this.loading = true;
+					sendRequest("POST", actPath, {action: query.a, token: query.t}, function(r) {
+						sessionStorage.setItem("alertSuccess", "Email Verified");
+						location.href = "?";
+						self.loading = false;
 					}, function (err) {
-						Alpine.store('notify').alert("danger", err.error);
+						sessionStorage.setItem("alertDanger", err.error);
+						location.href = "?";
+						self.loading = false;
+					});
+				}
+				if (location.pathname === bPath(env.account)) {
+					const self = this;
+					accessToken(function() {
+						if (query.a === "emailupdate") {
+							sendRequest("POST", actPath, {action: query.a, token: query.t}, function() {
+								location.href = bPath(env.account);
+							}, function (err, code) {
+								Alpine.store('notify').alert("danger", err.error);
+							});
+							return;
+						}
+						sendRequest("GET", location.pathname, null, function(r) {
+							self.original = JSON.stringify(r);
+							self.input = r;
+							Alpine.effect(() => {
+								if (Alpine.store("nav").tab) {
+									console.log("Moved tab");
+									self.input = JSON.parse(self.original);
+								}
+							});
+						}, function (err, code) {
+							Alpine.store('notify').alert("danger", err.error);
+						});
 					});
 				}
 			},
+			original: null,
 			input: {},
 			hide: {},
 			errors: {},
 			loading: false,
-			submit(e) {
+			submit: function (e) {
 				this.errors = {};
 				if (this.input.terms !== undefined) {
 					this.input.terms = this.input.terms ? "agree" : "";
@@ -111,20 +184,35 @@ document.addEventListener('alpine:init', () => {
 				}
 				this.loading = true;
 				let path = location.pathname;
-				if (query.a) {
-					path = actionUrl();
-					this.input.action = query.a;
+				if (query.a || e.act) {
+					path = actPath;
+					this.input.action = query.a || e.act;
 					if (query.t) {
 						this.input.token = query.t;
 					}
 				}
+				const success = {
+					resetlink: "Reset link sent!",
+					reset: "Password updated!",
+					confirmemail: "Confirmation link sent!"
+				};
+				const input = this.input;
 				sendRequest("POST", path, this.input, function(r) {
-					if (query.a === "resetlink" || query.a === "reset") {
+					if (input.action && success[input.action]) {
+						sessionStorage.setItem("alertSuccess", success[input.action]);
 						location.href = "?";
-						sessionStorage.setItem("alertSuccess", query.a === "resetlink" ? "Reset link sent!" : "Password updated!");
 						return;
 					}
-					location.href = env.home;
+					if (location.pathname === bPath(env.login)) {
+						accessToken(function() {
+							location.href = query.r ? query.r : env.base + env.account;
+						});
+					} else if (location.pathname === bPath(env.register)) {
+						sessionStorage.setItem("alertSuccess", r === "SENT" ? "Email confirmation link sent to your email." : "Registration success!");
+						location.href = bPath(env.login);
+					} else if (location.pathname === bPath(env.account)) {
+						Alpine.store('notify').alert("success", "Updated!");
+					}
 					this.loading = false;
 				}, function (err) {
 					this.loading = false;

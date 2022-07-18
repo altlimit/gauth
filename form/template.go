@@ -24,6 +24,7 @@ var formTemplate = `{{define "content"}}
                     <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
                 {{end}}
                 <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
+                <a @click="submit({act:'confirmemail'})" x-show="errors.{{.ID}} === 'inactive'">Re-Send Verification Link</a>
             </div>
         {{end}}
         {{if .Terms}}

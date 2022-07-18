@@ -24,17 +24,19 @@ type (
 		IdentitySave(ctx context.Context, uid string, data map[string]string) (nuid string, err error)
 	}
 
+	// Optionally implement this interface to customize your refresh token with a specific client ID or
+	// anything that can be identified that is linked to the UID so you can easily revoke it somewhere.
 	RefreshTokenProvider interface {
-		// Optionally implement this interface to customize your refresh token with a specific client ID or
-		// anything that can be identified that is linked to the UID so you can easily revoke it somewhere.
-		CreateRefreshToken(ctx context.Context, uid string) (string, error)
+		CreateRefreshToken(ctx context.Context, uid string) (cid string, err error)
+		// Called on logout
+		DeleteRefreshToken(ctx context.Context, uid, cid string) error
 	}
 
 	AccessTokenProvider interface {
 		// Optionally implement this to add additional claims under "grants"
 		// and add more role and access information for your token, this token is what's checked against
 		// your middleware.
-		CreateAccessToken(ctx context.Context, uid string, refresh string) (interface{}, error)
+		CreateAccessToken(ctx context.Context, uid string, cid string) (interface{}, error)
 	}
 )
 

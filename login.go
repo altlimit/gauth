@@ -15,10 +15,7 @@ import (
 func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		fc := ga.formConfig()
-		var action string
-		if a, ok := r.URL.Query()["a"]; ok && len(a) > 0 {
-			action = a[0]
-		}
+		action := r.URL.Query().Get("a")
 
 		fc.Links = append(fc.Links, &form.Link{
 			URL:   ga.Path.Base + ga.Path.Register,
@@ -164,6 +161,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 			Secure:   true,
 			MaxAge:   int(expire.Seconds()),
 			SameSite: http.SameSiteStrictMode,
+			Path:     ga.Path.Base + ga.Path.Refresh,
 		})
 	}
 	ga.writeJSON(http.StatusOK, w, map[string]string{"refresh_token": tok})
@@ -175,10 +173,10 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		if err := ga.bind(r, &req); err != nil {
-			ga.internalError(w, err)
+			ga.badError(w, err)
 			return
 		}
-	} else if r.Method == http.MethodGet && ga.RefreshTokenCookieName != "" {
+	} else if (r.Method == http.MethodGet || r.Method == http.MethodDelete) && ga.RefreshTokenCookieName != "" {
 		c, err := r.Cookie(ga.RefreshTokenCookieName)
 		if err != nil {
 			if err == http.ErrNoCookie {
@@ -207,6 +205,30 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	cid, ok := claims["cid"]
 	if !ok {
 		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
+		return
+	}
+
+	if r.Method == http.MethodDelete || r.URL.Query().Get("logout") == "1" {
+		if cp, ok := ga.AccountProvider.(RefreshTokenProvider); ok {
+			err := cp.DeleteRefreshToken(r.Context(), claims["sub"], cid)
+			if err != nil {
+				ga.internalError(w, err)
+				return
+			}
+		}
+
+		if ga.RefreshTokenCookieName != "" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     ga.RefreshTokenCookieName,
+				Value:    "",
+				Expires:  time.Unix(0, 0),
+				HttpOnly: true,
+				Secure:   true,
+				MaxAge:   -1,
+				SameSite: http.SameSiteStrictMode,
+				Path:     ga.Path.Base + ga.Path.Refresh,
+			})
+		}
 		return
 	}
 

@@ -79,10 +79,14 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ga.sendMail(ctx, actionVerify, uid, req); err != nil {
+	sent, err := ga.sendMail(ctx, actionVerify, uid, req)
+	if err != nil {
 		ga.internalError(w, err)
 		return
 	}
-
-	ga.writeJSON(http.StatusOK, w, "OK")
+	ok := "SENT"
+	if !sent {
+		ok = "OK"
+	}
+	ga.writeJSON(http.StatusOK, w, ok)
 }

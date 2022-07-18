@@ -32,12 +32,20 @@ func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(ed.HTMLContent))
 }
 
-func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req map[string]string) error {
+func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req map[string]string) (bool, error) {
 	if ga.emailSender != nil && ga.EmailFieldID != "" {
 		token := jwt.New(jwt.SigningMethodHS256)
 		claims := token.Claims.(jwt.MapClaims)
+		actPath := ga.Path.Login
+
 		claims["uid"] = uid
 		claims["act"] = action
+		toEmail := req[ga.EmailFieldID]
+		// updating email will only update record after verifying
+		if action == actionEmailUpdate {
+			claims["email"] = toEmail
+			actPath = ga.Path.Account
+		}
 		// todo make this configurable
 		claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
 		jwtKey := ga.JwtKey
@@ -47,10 +55,9 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		}
 		tok, err := token.SignedString(jwtKey)
 		if err != nil {
-			return fmt.Errorf("sendMail: SignedString error %v", err)
+			return false, fmt.Errorf("sendMail: SignedString error %v", err)
 		}
-
-		link := ga.Brand.AppURL + ga.Path.Base + ga.Path.Login + "?a=" + action + "&t=" + tok
+		link := ga.Brand.AppURL + ga.Path.Base + actPath + "?a=" + action + "&t=" + tok
 		ed := ga.emailData()
 
 		switch action {
@@ -96,14 +103,15 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		}
 
 		if err := ed.Parse(req); err != nil {
-			return fmt.Errorf("ga.sendMail: parse error %v", err)
+			return false, fmt.Errorf("ga.sendMail: parse error %v", err)
 		}
 
 		if ed.Subject != "" {
-			if err := ga.emailSender.SendEmail(ctx, req[ga.EmailFieldID], ed.Subject, ed.TextContent, ed.HTMLContent); err != nil {
-				return err
+			if err := ga.emailSender.SendEmail(ctx, toEmail, ed.Subject, ed.TextContent, ed.HTMLContent); err != nil {
+				return false, err
 			}
+			return true, nil
 		}
 	}
-	return nil
+	return false, nil
 }

@@ -9,7 +9,7 @@ POST {{baseURL}}/register
     "email": "a@a.a",
     "name": "Tester",
     "password": "P@ssw0rd",
-    "repassword": "P@ssw0rd",
+    "password_confirm": "P@ssw0rd",
     "terms": "agree"
 }
 
@@ -40,14 +40,21 @@ Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAi
 POST {{baseURL}}/refresh
 
 {
-    "token": ""
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc5OTE3MDMsInN1YiI6IjEifQ.1rkvN0zLigqPq7lCOnwNLoNxE2vykTeUmPoj93oK1jw"
 }
 
 ###
 
 GET {{homeURL}}/dashboard
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc3MjYwNjAsInN1YiI6IjEifQ.1FR9nUJC7C01xrWihn2WFqIZmL4gQrrWN6C9FYHfIzc
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc5MDgxNTIsImdyYW50cyI6eyJvd25lciI6ZmFsc2UsInJvbGVfaWRzIjpbMSwyLDNdfSwic3ViIjoiMSJ9.cdjBrGG-FYGYhdHv3lFIxtbHzOsGsddBsWE1ztUB-oI
+
+###
+
+GET {{baseURL}}/account
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NTc5MDg5MTMsImdyYW50cyI6eyJvd25lciI6ZmFsc2UsInJvbGVfaWRzIjpbMSwyLDNdfSwic3ViIjoiMSJ9.xrI97zgxjORFY1HXbyQ_5EFqmJ4fP69rJtnwCsPVhCI
+
 
 ###
 

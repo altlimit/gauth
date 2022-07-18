@@ -394,7 +394,7 @@ pre {
 {{end}}
 </head>
 <body>
-    <div id="env" data-base="{{.Path.Base}}" data-home="{{.Path.Home}}" data-account="{{.Path.Account}}" data-login="{{.Path.Login}}" data-register="{{.Path.Register}}" data-logout="{{.Path.Logout}}" data-refresh="{{.Path.Refresh}}"></div>
+    <div id="env" data-base="{{.Path.Base}}" data-home="{{.Path.Home}}" data-account="{{.Path.Account}}" data-login="{{.Path.Login}}" data-register="{{.Path.Register}}" data-refresh="{{.Path.Refresh}}"></div>
     <div class="backdrop"></div>
     <div class="workspace">
         <figure class="sidebar">
@@ -430,12 +430,14 @@ var nav = `
 {{ define "nav"}}
 <div class="nav-panel" x-data>
     <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>
-
+    {{if .Tabs}}
     <nav class="nav">
-    {{range .Tabs}}
-        <a class="pointer" @click="$store.nav.setTab('{{.}}')">{{.}}</a>
-    {{end}}
+        {{range .Tabs}}
+            <a class="pointer" @click="$store.nav.setTab('{{.}}')">{{.}}</a>
+        {{end}}
+        <a class="pointer" @click="$store.nav.logout()">Logout</a>
     </nav>
+    {{end}}
 </div>
 {{ end }}
 `

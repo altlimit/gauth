@@ -94,7 +94,6 @@ func NewDefault(ap AccountProvider) *GAuth {
 		Path: form.Path{
 			Account:  "/account",
 			Login:    "/login",
-			Logout:   "/logout",
 			Register: "/register",
 			Refresh:  "/refresh",
 		},
@@ -284,9 +283,6 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 	if ga.Path.Register == "" {
 		panic("Register path missing")
-	}
-	if ga.Path.Logout == "" {
-		panic("Logout path missing")
 	}
 	if ga.Path.Refresh == "" {
 		panic("Refresh path missing")

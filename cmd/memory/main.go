@@ -36,7 +36,7 @@ func (mp *memoryProvider) IdentityUID(ctx context.Context, id string) (uid strin
 	for k, v := range users {
 		if v.Email == id {
 			if !v.Active {
-				return "", gauth.ErrAccountNotActive
+				return k, gauth.ErrAccountNotActive
 			}
 			return k, nil
 		}
@@ -125,7 +125,6 @@ func main() {
 	port := "8887"
 	ga := gauth.NewDefault(&memoryProvider{})
 	ga.Brand.AppName = "Demo Memory"
-	ga.Brand.LogoURL = "https://www.altlimit.com/logo.png"
 	ga.Brand.AppURL = "http://localhost:" + port
 	ga.Path.Terms = "/terms"
 	ga.AccountFields = append(ga.AccountFields,
