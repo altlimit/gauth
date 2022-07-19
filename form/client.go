@@ -161,7 +161,7 @@ document.addEventListener('alpine:init', function() {
 							this.updateAccount();
 						}
 					});
-				} else if (isLogin) {
+				} else if (isLogin && this.$refs.field_code) {
 					this.$refs.field_code.classList.add("hidden");
 				}
 				const els = document.querySelectorAll("input[id$=_confirm]");
@@ -178,11 +178,11 @@ document.addEventListener('alpine:init', function() {
 				if (acct) {
 					this.original = JSON.stringify(acct);
 					this.input = acct;
-					if (this.input.totpsecret === "1") {
+					if (this.input.totpsecret === true) {
 						this.mfa.url = null;
 					}
 				}
-				if (this.input.totpsecret === "1" && !reset) {
+				if (this.input.totpsecret === true && !reset) {
 					this.$refs.field_code.classList.add("hidden");
 				} else if (!this.mfa.url || reset) {
 					sendRequest("POST", actPath, {action:"newTotpKey"}, (r) => {
@@ -229,15 +229,15 @@ document.addEventListener('alpine:init', function() {
 					reset: "Password updated!",
 					confirmemail: "Confirmation link sent!"
 				};
-				const input = this.input;
+				const input = JSON.parse(JSON.stringify(this.input));
 				for (let k in input) {
 					if (!input[k]) delete(input[k]);
 				}
 				if (input.code) {
-					this.input.totpsecret = this.mfa.secret;
+					input.totpsecret = this.mfa.secret;
 				}
 				if (this.mfa.recovery) {
-					this.input.recoverycodes = this.mfa.recovery.split("\n").join("|");
+					input.recoverycodes = this.mfa.recovery.split("\n").join("|");
 					this.mfa.recovery = null;
 				}
 				sendRequest("POST", path, input, (r, code) => {

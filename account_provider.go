@@ -15,13 +15,17 @@ type (
 		// this will be use as the subject in your refresh and access token, you should return
 		// ErrAccountNotFound if it doesn't exists or ErrAccountNotActive if they are not allowed to login while inactive.
 		IdentityUID(ctx context.Context, id string) (uid string, err error)
-		// IdentityLoad must return map of fields that has InSettings enabled or
-		// IdentityFieldID, EmailFieldID and PasswordFieldID if present
-		IdentityLoad(ctx context.Context, uid string) (data map[string]string, err error)
-		// IdentitySave for saving the actual registered user, you'll get the data from your AccountFields here
-		// if password is present you'll get an already hashed password ready to save to DB directly, uid will
-		// be "" if it's a new user. Return the created or the same uid if it's an update.
-		IdentitySave(ctx context.Context, uid string, data map[string]string) (nuid string, err error)
+		// IdentityLoad must return a struct that implements Identity interface, provide "gauth" tag
+		// to map AccountFields ID to your struct properties. If the account does not exists you must
+		// return an zero/default struct Identity that will be populated for a new registration.
+		IdentityLoad(ctx context.Context, uid string) (identity Identity, err error)
+	}
+
+	Identity interface {
+		// IdentitySave is called to safely save an account, fields provided with "gauth" tag will
+		// automatically be updated with it's corresponding values based on registration/login/account
+		// forms. Return the unique identifier of this account once saved.
+		IdentitySave(ctx context.Context) (uid string, err error)
 	}
 
 	// Optionally implement this interface to customize your refresh token with a specific client ID or

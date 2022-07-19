@@ -1,6 +1,7 @@
 package gauth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/altlimit/gauth/form"
@@ -28,7 +29,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
 		return
 	}
-	var req map[string]string
+	var req map[string]interface{}
 	if err := ga.bind(r, &req); err != nil {
 		ga.badError(w, err)
 		return
@@ -44,15 +45,22 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ga.RecaptchaSecret != "" && ga.RecaptchaSiteKey != "" {
-		if err := validRecaptcha(ga.RecaptchaSecret, req["recaptcha"], realIP(r)); err != nil {
-			ga.validationError(w, "recaptcha", "verification failed")
-			return
+		if recaptcha, ok := req["recaptcha"].(string); ok {
+			if err := validRecaptcha(ga.RecaptchaSecret, recaptcha, realIP(r)); err != nil {
+				ga.validationError(w, "recaptcha", "verification failed")
+				return
+			}
 		}
 	}
 	ctx := r.Context()
 
 	// check if identityField is unique
-	_, err := ga.AccountProvider.IdentityUID(ctx, req[ga.IdentityFieldID])
+	id, ok := req[ga.IdentityFieldID].(string)
+	if !ok {
+		ga.validationError(w, ga.IdentityFieldID, "required")
+		return
+	}
+	_, err := ga.AccountProvider.IdentityUID(ctx, id)
 	if err == nil || err == ErrAccountNotActive {
 		ga.validationError(w, ga.IdentityFieldID, "already registered")
 		return
@@ -66,13 +74,19 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// we hash the password before we send to save
-	req[ga.PasswordFieldID], err = hashPassword(req[ga.PasswordFieldID], ga.BCryptCost)
+	identity, err := ga.AccountProvider.IdentityLoad(ctx, "")
+	if err != ErrAccountNotFound {
+		ga.internalError(w, errors.New("IdentityLoad with empty uid got a record: "+err.Error()))
+	}
+
+	pw, _ := req[ga.PasswordFieldID].(string)
+	req[ga.PasswordFieldID], err = hashPassword(pw, ga.BCryptCost)
 	if err != nil {
 		ga.internalError(w, err)
 		return
 	}
-	uid, err := ga.AccountProvider.IdentitySave(ctx, "", req)
+
+	uid, err := ga.saveIdentity(ctx, identity, req)
 	if err != nil {
 		ga.internalError(w, err)
 		return

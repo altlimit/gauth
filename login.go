@@ -63,18 +63,18 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
 		return
 	}
-	var req map[string]string
+	var req map[string]interface{}
 	if err := ga.bind(r, &req); err != nil {
 		ga.badError(w, err)
 		return
 	}
 	ctx := r.Context()
-	identity := req[ga.IdentityFieldID]
+	identity, _ := req[ga.IdentityFieldID].(string)
 	var valErrs []string
 	if identity == "" {
 		valErrs = append(valErrs, ga.IdentityFieldID, "required")
 	}
-	passwd := req[ga.PasswordFieldID]
+	passwd, _ := req[ga.PasswordFieldID].(string)
 	if passwd == "" {
 		valErrs = append(valErrs, ga.PasswordFieldID, "required")
 	}
@@ -108,20 +108,21 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	if !validPassword(account[ga.PasswordFieldID], passwd) {
+	data := ga.loadIdentity(account)
+	if !validPassword(data[ga.PasswordFieldID].(string), passwd) {
 		ga.validationError(w, ga.PasswordFieldID, "invalid")
 		return
 	}
 
-	if totpSecret, ok := account[FieldTOTPSecretID]; ok && len(totpSecret) > 0 {
-		code, ok := req[FieldCodeID]
+	if totpSecret, ok := data[FieldTOTPSecretID].(string); ok && len(totpSecret) > 0 {
+		code, ok := req[FieldCodeID].(string)
 		if !ok {
 			ga.validationError(w, FieldCodeID, "required")
 			return
 		}
 		usedRecovery := false
 		if len(code) == 10 {
-			recovery, ok := account[FieldRecoveryCodesID]
+			recovery, ok := data[FieldRecoveryCodesID].(string)
 			if ok && len(recovery) > 0 {
 				var unused []string
 				for _, val := range strings.Split(recovery, "|") {
@@ -132,8 +133,9 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 					unused = append(unused, val)
 				}
 				if usedRecovery {
-					account[FieldRecoveryCodesID] = strings.Join(unused, "|")
-					_, err = ga.AccountProvider.IdentitySave(ctx, uid, account)
+					_, err = ga.saveIdentity(ctx, account, map[string]interface{}{
+						FieldRecoveryCodesID: strings.Join(unused, "|"),
+					})
 					if err != nil {
 						ga.internalError(w, err)
 						return

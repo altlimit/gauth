@@ -27,8 +27,8 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func RequiredEmail(fID string, data map[string]string) error {
-	s := data[fID]
+func RequiredEmail(fID string, data map[string]interface{}) error {
+	s, _ := data[fID].(string)
 	_, err := mail.ParseAddress(s)
 	if err != nil {
 		return errors.New("enter a valid email")
@@ -36,8 +36,8 @@ func RequiredEmail(fID string, data map[string]string) error {
 	return nil
 }
 
-func RequiredText(fID string, data map[string]string) error {
-	s := data[fID]
+func RequiredText(fID string, data map[string]interface{}) error {
+	s, _ := data[fID].(string)
 	if len(s) > 100 {
 		return errors.New("too long")
 	}
@@ -47,8 +47,8 @@ func RequiredText(fID string, data map[string]string) error {
 	return nil
 }
 
-func RequiredPassword(fID string, data map[string]string) error {
-	s := data[fID]
+func RequiredPassword(fID string, data map[string]interface{}) error {
+	s, _ := data[fID].(string)
 	if s == "" {
 		return errors.New("required")
 	}

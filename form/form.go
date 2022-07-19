@@ -21,7 +21,7 @@ var (
 )
 
 type (
-	ValidateFunc func(fieldID string, data map[string]string) error
+	ValidateFunc func(fieldID string, data map[string]interface{}) error
 	Config       struct {
 		AlpineJSURL string
 		Recaptcha   string

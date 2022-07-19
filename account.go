@@ -30,12 +30,12 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ctx := r.Context()
-		acct, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
+		account, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
 		if err != nil {
 			ga.internalError(w, err)
 			return
 		}
-
+		data := ga.loadIdentity(account)
 		delFields := []string{ga.PasswordFieldID, FieldActiveID, FieldRecoveryCodesID, FieldTOTPSecretID}
 		skipFields := make(map[string]bool)
 		for _, v := range delFields {
@@ -43,32 +43,32 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		skipFields[FieldCodeID] = true
 		cleanAccount := func() {
-			totpEnabled := acct[FieldTOTPSecretID] != ""
-			recovEnabled := acct[FieldRecoveryCodesID] != ""
+			totpEnabled, okT := data[FieldTOTPSecretID].(string)
+			recovEnabled, okR := data[FieldRecoveryCodesID].(string)
 			for _, v := range delFields {
-				delete(acct, v)
+				delete(data, v)
 			}
-			if totpEnabled {
-				acct[FieldTOTPSecretID] = "1"
+			if okT && len(totpEnabled) > 0 {
+				data[FieldTOTPSecretID] = true
 			}
-			if recovEnabled {
-				acct[FieldRecoveryCodesID] = "1"
+			if okR && len(recovEnabled) > 0 {
+				data[FieldRecoveryCodesID] = len(strings.Split(recovEnabled, "|"))
 			}
 		}
 		switch r.Method {
 		case http.MethodGet:
 			cleanAccount()
-			ga.writeJSON(http.StatusOK, w, acct)
+			ga.writeJSON(http.StatusOK, w, data)
 			return
 		case http.MethodPost:
-			req := make(map[string]string)
+			req := make(map[string]interface{})
 			if err := ga.bind(r, &req); err != nil {
 				ga.badError(w, err)
 				return
 			}
 			fieldsByID := make(map[string]*form.Field)
 			var valFields []*form.Field
-			pw := req[ga.PasswordFieldID]
+			pw, _ := req[ga.PasswordFieldID].(string)
 			for _, f := range fields {
 				fieldsByID[f.ID] = f
 				// only validate fields that are present
@@ -76,7 +76,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 					valFields = append(valFields, f)
 
 					if _, ok := skipFields[f.ID]; !ok {
-						acct[f.ID] = val
+						data[f.ID] = val
 					}
 				}
 			}
@@ -87,15 +87,15 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if pw != "" {
-				acct[ga.PasswordFieldID], err = hashPassword(pw, ga.BCryptCost)
+				data[ga.PasswordFieldID], err = hashPassword(pw, ga.BCryptCost)
 				if err != nil {
 					ga.internalError(w, err)
 					return
 				}
 			}
-			if req[FieldRecoveryCodesID] != "" {
+			if recovery, ok := req[FieldRecoveryCodesID].(string); ok && len(recovery) > 0 {
 				var codes []string
-				for _, val := range strings.Split(req[FieldRecoveryCodesID], "|") {
+				for _, val := range strings.Split(recovery, "|") {
 					code, err := hashPassword(val, ga.BCryptCost)
 					if err != nil {
 						ga.internalError(w, err)
@@ -103,23 +103,23 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 					}
 					codes = append(codes, code)
 				}
-				acct[FieldRecoveryCodesID] = strings.Join(codes, "|")
+				data[FieldRecoveryCodesID] = strings.Join(codes, "|")
 			}
-			if req[FieldTOTPSecretID] == "0" {
-				acct[FieldTOTPSecretID] = ""
-			} else if code, ok := req[FieldCodeID]; ok && len(code) > 0 {
-				totpSecret := req[FieldTOTPSecretID]
-				if totpSecret != "" {
-					if !totp.Validate(code, totpSecret) {
+			secret, _ := req[FieldTOTPSecretID].(string)
+			if secret == "0" {
+				data[FieldTOTPSecretID] = ""
+			} else if code, ok := req[FieldCodeID].(string); ok && len(code) > 0 {
+				if secret != "" {
+					if !totp.Validate(code, secret) {
 						ga.validationError(w, FieldCodeID, "invalid")
 						return
 					}
-					acct[FieldTOTPSecretID] = totpSecret
+					data[FieldTOTPSecretID] = secret
 				}
 			}
 
 			status := http.StatusOK
-			if req[ga.EmailFieldID] != acct[ga.EmailFieldID] {
+			if req[ga.EmailFieldID] != data[ga.EmailFieldID] {
 				ok, err := ga.sendMail(ctx, actionEmailUpdate, auth.UID, req)
 				if err != nil {
 					ga.internalError(w, err)
@@ -131,13 +131,13 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			_, err = ga.AccountProvider.IdentitySave(ctx, auth.UID, acct)
+			_, err = ga.saveIdentity(ctx, account, data)
 			if err != nil {
 				ga.internalError(w, err)
 				return
 			}
 			cleanAccount()
-			ga.writeJSON(status, w, acct)
+			ga.writeJSON(status, w, data)
 			return
 		}
 

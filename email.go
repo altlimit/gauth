@@ -25,14 +25,14 @@ func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
 		{P: "Click the link below to update your email."},
 		{URL: "#", Label: "Verify"},
 	}
-	if err := ed.Parse(make(map[string]string)); err != nil {
+	if err := ed.Parse(make(map[string]interface{})); err != nil {
 		ga.internalError(w, err)
 		return
 	}
 	w.Write([]byte(ed.HTMLContent))
 }
 
-func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req map[string]string) (bool, error) {
+func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req map[string]interface{}) (bool, error) {
 	if ga.emailSender != nil && ga.EmailFieldID != "" {
 		token := jwt.New(jwt.SigningMethodHS256)
 		claims := token.Claims.(jwt.MapClaims)
@@ -40,7 +40,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 
 		claims["uid"] = uid
 		claims["act"] = action
-		toEmail := req[ga.EmailFieldID]
+		toEmail := req[ga.EmailFieldID].(string)
 		// updating email will only update record after verifying
 		if action == actionEmailUpdate {
 			claims["email"] = toEmail
@@ -51,7 +51,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		jwtKey := ga.JwtKey
 		if action == actionReset {
 			// we append password hash for password resets
-			jwtKey = append(jwtKey, []byte(req[ga.PasswordFieldID])...)
+			jwtKey = append(jwtKey, []byte(req[ga.PasswordFieldID].(string))...)
 		}
 		tok, err := token.SignedString(jwtKey)
 		if err != nil {

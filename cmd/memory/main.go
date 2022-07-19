@@ -16,14 +16,15 @@ type (
 	}
 
 	User struct {
-		Name          string
-		Password      string
-		Email         string
-		Active        bool
-		TotpSecretKey string
-		RecoveryCodes string
-		Question      string
-		Answer        string
+		ID            string
+		Name          string `gauth:"name"`
+		Password      string `gauth:"password"`
+		Email         string `gauth:"email"`
+		Active        bool   `gauth:"active"`
+		TotpSecretKey string `gauth:"totpsecret"`
+		RecoveryCodes string `gauth:"recoverycodes"`
+		Question      string `gauth:"question"`
+		Answer        string `gauth:"answer"`
 	}
 )
 
@@ -31,6 +32,18 @@ var (
 	users = make(map[string]*User)
 	lock  sync.Mutex
 )
+
+func (u *User) IdentitySave(ctx context.Context) (uid string, err error) {
+	lock.Lock()
+	defer lock.Unlock()
+	if u.ID == "" {
+		u.Active = false
+		u.ID = strconv.Itoa(len(users) + 1)
+	}
+	users[u.ID] = u
+	uid = u.ID
+	return
+}
 
 func (mp *memoryProvider) IdentityUID(ctx context.Context, id string) (uid string, err error) {
 	lock.Lock()
@@ -46,57 +59,16 @@ func (mp *memoryProvider) IdentityUID(ctx context.Context, id string) (uid strin
 	return "", gauth.ErrAccountNotFound
 }
 
-func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (map[string]string, error) {
+func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (gauth.Identity, error) {
 	lock.Lock()
 	defer lock.Unlock()
 	u, ok := users[uid]
 	if !ok {
-		return nil, gauth.ErrAccountNotFound
+		return &User{}, gauth.ErrAccountNotFound
 	}
-	data := map[string]string{
-		"name":                     u.Name,
-		"password":                 u.Password,
-		"email":                    u.Email,
-		"question":                 u.Question,
-		"answer":                   u.Answer,
-		gauth.FieldActiveID:        "0",
-		gauth.FieldTOTPSecretID:    u.TotpSecretKey,
-		gauth.FieldRecoveryCodesID: u.RecoveryCodes,
-	}
-	if u.Active {
-		data[gauth.FieldActiveID] = "1"
-	}
-	return data, nil
+	return u, nil
 }
-func (mp *memoryProvider) IdentitySave(ctx context.Context, uid string, data map[string]string) (string, error) {
-	lock.Lock()
-	defer lock.Unlock()
-	var u *User
-	if uid == "" {
-		// create user
-		u = &User{Active: false}
-		uid = strconv.Itoa(len(users) + 1)
-	} else {
-		u = users[uid]
-	}
-	u.Email = data["email"]
-	u.Name = data["name"]
-	u.Password = data["password"]
-	u.Question = data["question"]
-	u.Answer = data["answer"]
-	// check for built-in fields and update
-	if v, ok := data[gauth.FieldActiveID]; ok {
-		u.Active = v == "1"
-	}
-	if v, ok := data[gauth.FieldTOTPSecretID]; ok {
-		u.TotpSecretKey = v
-	}
-	if v, ok := data[gauth.FieldRecoveryCodesID]; ok {
-		u.RecoveryCodes = v
-	}
-	users[uid] = u
-	return uid, nil
-}
+
 func (mp *memoryProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
 	log.Println("ToEmail", toEmail, "\nSubject", subject, "\nTextBody: ", textBody)
 	return nil

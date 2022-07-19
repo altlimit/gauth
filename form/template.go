@@ -13,10 +13,13 @@ var formTemplate = `{{define "content"}}
             <div class="field" x-ref="field_{{.ID}}" {{if $.Tabs}}x-show="$store.nav.isTab('{{.SettingsTab}}')"{{end}}>
                 {{if eq .Type "2fa"}}
                     <img x-show="mfa.url" :src="mfa.url" width="200" id="{{.ID}}" />
-                    <a x-show="input.totpsecret === '1'" @click="updateAccount(null, true)">Reset 2FA</a>
+                    <a x-show="input.totpsecret === true" @click="updateAccount(null, true)">Reset 2FA</a>
                 {{else if eq .Type "recovery"}}
-                    <div x-show="input.totpsecret === '1'">
-                        <a @click="genRecovery">Generate Recovery Codes</a>
+                    <div x-show="input.totpsecret === true">
+                        <a @click="genRecovery">
+                            Generate Recovery Codes
+                            (<span x-text="input.recoverycodes || 0"></span>)
+                        </a>
                         <div x-show="mfa.recovery">
                             <pre class="recovery" x-text="mfa.recovery"></pre>
                             <span class="help">This will only be shown to you once. Hit save to activate.</span>

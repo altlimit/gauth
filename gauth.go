@@ -2,6 +2,7 @@ package gauth
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,6 +20,7 @@ import (
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/email"
 	"github.com/altlimit/gauth/form"
+	"github.com/altlimit/gauth/structtag"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -68,6 +71,8 @@ type (
 		Brand form.Brand
 
 		RateLimit RateLimit
+		// defaults to "gauth"
+		StructTag string
 
 		rateLimiter cache.RateLimiter
 		emailSender email.Sender
@@ -254,7 +259,7 @@ func (ga *GAuth) resetFields() (fields []*form.Field) {
 	return
 }
 
-func (ga *GAuth) validateFields(fields []*form.Field, input map[string]string) map[string]string {
+func (ga *GAuth) validateFields(fields []*form.Field, input map[string]interface{}) map[string]string {
 	vErrs := make(map[string]string)
 	for _, field := range fields {
 		if field.Validate != nil {
@@ -301,6 +306,9 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 
 	// Set defaults
+	if ga.StructTag == "" {
+		ga.StructTag = "gauth"
+	}
 	if ga.Logger == nil {
 		ga.Logger = log.Default()
 	}
@@ -513,4 +521,44 @@ func (ga *GAuth) tokenClaims(tok, key string) (jwt.MapClaims, error) {
 		return claims, nil
 	}
 	return nil, errors.New("gauth.tokenClaims not valid")
+}
+
+func (ga *GAuth) saveIdentity(ctx context.Context, id Identity, req map[string]interface{}) (string, error) {
+	v := reflect.ValueOf(id)
+	if v.Type().Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	for tag, field := range structtag.GetFieldsByTag(id, ga.StructTag) {
+		val, ok := req[tag]
+		if ok {
+			vt := reflect.TypeOf(val)
+			vv := reflect.ValueOf(val)
+			fv := v.Field(field.Index)
+			ft := fv.Type()
+			if vt == ft {
+				fv.Set(vv)
+			} else {
+				ga.log("WARN field not mapped: ", tag, "type is", ft, "got", vt, "value", val)
+			}
+		}
+	}
+
+	return id.IdentitySave(ctx)
+}
+
+func (ga *GAuth) loadIdentity(id Identity) map[string]interface{} {
+	data := make(map[string]interface{})
+
+	v := reflect.ValueOf(id)
+	if v.Type().Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	for tag, field := range structtag.GetFieldsByTag(id, ga.StructTag) {
+		fv := v.Field(field.Index)
+		data[tag] = fv.Interface()
+	}
+
+	return data
 }

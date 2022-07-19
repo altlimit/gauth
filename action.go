@@ -56,15 +56,15 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ctx := r.Context()
-		acct, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
+		accoount, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
 		if err != nil {
 			ga.internalError(w, err)
 			return
 		}
-
+		data := ga.loadIdentity(accoount)
 		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      ga.Brand.AppName,
-			AccountName: acct[ga.IdentityFieldID],
+			AccountName: data[ga.IdentityFieldID].(string),
 		})
 		if err != nil {
 			ga.internalError(w, err)
@@ -85,14 +85,16 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		uid := claims["uid"]
 		if claims["act"] == actionVerify && len(uid) > 0 {
-			data, err := ga.AccountProvider.IdentityLoad(ctx, uid)
+			account, err := ga.AccountProvider.IdentityLoad(ctx, uid)
 			if err == ErrAccountNotFound {
 				ga.writeJSON(http.StatusNotFound, w, errorResponse{Error: "account not found"})
 				return
 			}
-			if data[FieldActiveID] != "1" {
-				data[FieldActiveID] = "1"
-				if _, err := ga.AccountProvider.IdentitySave(ctx, uid, data); err != nil {
+			data := ga.loadIdentity(account)
+			if active, ok := data[FieldActiveID].(bool); ok && !active {
+				if _, err := ga.saveIdentity(ctx, account, map[string]interface{}{
+					FieldActiveID: true,
+				}); err != nil {
 					ga.internalError(w, err)
 					return
 				}
@@ -128,7 +130,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				ga.internalError(w, err)
 				return
 			}
-			if _, err := ga.sendMail(ctx, actionReset, uid, account); err != nil {
+			if _, err := ga.sendMail(ctx, actionReset, uid, ga.loadIdentity(account)); err != nil {
 				ga.internalError(w, err)
 				return
 			}
@@ -137,7 +139,11 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	case actionReset:
 		// endpoint for password reset
-		vErrs := ga.validateFields(ga.resetFields(), req)
+		data := make(map[string]interface{})
+		for k, v := range req {
+			data[k] = v
+		}
+		vErrs := ga.validateFields(ga.resetFields(), data)
 		if len(vErrs) > 0 {
 			ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "validation", Data: vErrs})
 			return
@@ -157,24 +163,28 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			ga.internalError(w, err)
 			return
 		}
-		acct, err := ga.AccountProvider.IdentityLoad(ctx, uid)
+		account, err := ga.AccountProvider.IdentityLoad(ctx, uid)
 		if err == ErrAccountNotFound {
 			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
 			return
 		}
-		claims, err := ga.tokenStringClaims(req["token"], acct[ga.PasswordFieldID])
+		acct := ga.loadIdentity(account)
+		pw, _ := acct[ga.PasswordFieldID].(string)
+		claims, err := ga.tokenStringClaims(req["token"], pw)
 		if err != nil || uid != claims["uid"] {
 			ga.log("verify token error", err)
 			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
 			return
 		}
 		if claims["act"] == actionReset {
-			acct[ga.PasswordFieldID], err = hashPassword(req[ga.PasswordFieldID], ga.BCryptCost)
+			pw, err = hashPassword(req[ga.PasswordFieldID], ga.BCryptCost)
 			if err != nil {
 				ga.internalError(w, err)
 				return
 			}
-			if _, err := ga.AccountProvider.IdentitySave(ctx, uid, acct); err != nil {
+			if _, err := ga.saveIdentity(ctx, account, map[string]interface{}{
+				ga.PasswordFieldID: pw,
+			}); err != nil {
 				ga.internalError(w, err)
 				return
 			}
@@ -209,7 +219,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				ga.internalError(w, err)
 				return
 			}
-			if _, err := ga.sendMail(ctx, actionVerify, uid, account); err != nil {
+			if _, err := ga.sendMail(ctx, actionVerify, uid, ga.loadIdentity(account)); err != nil {
 				ga.internalError(w, err)
 				return
 			}
@@ -233,14 +243,18 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		email, ok := uclaim["email"].(string)
 		if ok && email != "" {
-			acct, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
+			account, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
 			if err != nil {
 				ga.internalError(w, err)
 				return
 			}
-			if acct[ga.EmailFieldID] != email {
-				acct[ga.EmailFieldID] = email
-				if _, err := ga.AccountProvider.IdentitySave(ctx, auth.UID, acct); err != nil {
+			data := ga.loadIdentity(account)
+			cEmail, _ := data[ga.EmailFieldID].(string)
+			if cEmail != email {
+				cEmail = email
+				if _, err := ga.saveIdentity(ctx, account, map[string]interface{}{
+					ga.EmailFieldID: email,
+				}); err != nil {
 					ga.internalError(w, err)
 					return
 				}

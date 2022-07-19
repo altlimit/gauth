@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"strings"
 )
@@ -47,15 +48,16 @@ func init() {
 }
 
 // Parse populates Text & HTML Content returning an error
-func (e *Data) Parse(data map[string]string) error {
+func (e *Data) Parse(data map[string]interface{}) error {
 	var texts []string
 	buf := bytes.NewBufferString("")
 
 	for k, v := range data {
+		vs := fmt.Sprint(v)
 		for i, d := range e.Data {
-			e.Data[i].Label = strings.ReplaceAll(d.Label, "{"+k+"}", v)
-			e.Data[i].P = strings.ReplaceAll(d.P, "{"+k+"}", v)
-			e.Data[i].URL = strings.ReplaceAll(d.URL, "{"+k+"}", v)
+			e.Data[i].Label = strings.ReplaceAll(d.Label, "{"+k+"}", vs)
+			e.Data[i].P = strings.ReplaceAll(d.P, "{"+k+"}", vs)
+			e.Data[i].URL = strings.ReplaceAll(d.URL, "{"+k+"}", vs)
 		}
 	}
 
