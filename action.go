@@ -4,7 +4,6 @@ import (
 	"image/png"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/altlimit/gauth/cache"
 	"github.com/pquerna/otp"
@@ -12,6 +11,24 @@ import (
 )
 
 func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		if qr := r.URL.Query().Get("qr"); qr != "" {
+			key, err := otp.NewKeyFromURL(qr)
+			if err != nil {
+				ga.internalError(w, err)
+				return
+			}
+			img, err := key.Image(200, 200)
+			if err != nil {
+				ga.internalError(w, err)
+				return
+			}
+			png.Encode(w, img)
+			return
+		}
+		ga.writeJSON(http.StatusNotFound, w, nil)
+		return
+	}
 	if r.Method != http.MethodPost {
 		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
 		return
@@ -23,10 +40,31 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	switch req["action"] {
-	case "genKey":
+	case "newRecovery":
+		recovery := make([]string, 10)
+		for i := 0; i < 10; i++ {
+			recovery[i] = randSeq(10)
+		}
+		ga.writeJSON(http.StatusOK, w, recovery)
+		return
+	case "newTotpKey":
+		auth, err := ga.Authorized(ga.headerToken(r))
+		if err != nil {
+			ga.log("AuthorizedError: ", err)
+			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
+			return
+		}
+
+		ctx := r.Context()
+		acct, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
+		if err != nil {
+			ga.internalError(w, err)
+			return
+		}
+
 		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      ga.Brand.AppURL,
-			AccountName: "a@example.com",
+			Issuer:      ga.Brand.AppName,
+			AccountName: acct[ga.IdentityFieldID],
 		})
 		if err != nil {
 			ga.internalError(w, err)
@@ -71,8 +109,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			ga.validationError(w, ga.IdentityFieldID, "required")
 			return
 		}
-		idKey := "resetlink:" + strings.ToLower(identity)
-		if err := ga.rateLimiter.RateLimit(ctx, idKey, 2, time.Hour); err != nil {
+		if err := ga.rateLimiter.RateLimit(ctx, "resetlink:"+strings.ToLower(identity), ga.RateLimit.ResetLink.Rate, ga.RateLimit.ResetLink.Duration); err != nil {
 			if _, ok := err.(cache.RateLimitError); ok {
 				ga.validationError(w, ga.IdentityFieldID, "try again later")
 				return
@@ -112,8 +149,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		uid := uclaim["uid"].(string)
-		idKey := "resetlink:" + uid
-		if err := ga.rateLimiter.RateLimit(ctx, idKey, 10, time.Hour); err != nil {
+		if err := ga.rateLimiter.RateLimit(ctx, "resetlink:"+uid, ga.RateLimit.ResetLink.Rate, ga.RateLimit.ResetLink.Duration); err != nil {
 			if _, ok := err.(cache.RateLimitError); ok {
 				ga.validationError(w, ga.IdentityFieldID, "try again later")
 				return
@@ -154,8 +190,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			ga.validationError(w, ga.IdentityFieldID, "required")
 			return
 		}
-		idKey := "confirmemail:" + strings.ToLower(identity)
-		if err := ga.rateLimiter.RateLimit(ctx, idKey, 2, time.Hour); err != nil {
+		if err := ga.rateLimiter.RateLimit(ctx, "confirmemail:"+strings.ToLower(identity), ga.RateLimit.ConfirmEmail.Rate, ga.RateLimit.ConfirmEmail.Duration); err != nil {
 			if _, ok := err.(cache.RateLimitError); ok {
 				ga.validationError(w, ga.IdentityFieldID, "try again later")
 				return

@@ -199,6 +199,9 @@ a {
     border-radius: 0.375rem;
     cursor: pointer;
 }
+.button > span {
+    color: var(--primary-inverse);
+}
 .button:hover {
     filter: brightness(85%);
     filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.07)) drop-shadow(0 2px 2px rgb(0 0 0 / 0.06));
@@ -244,6 +247,9 @@ footer {
 :disabled,.disable{
     cursor: not-allowed;
     opacity:.5;
+}
+.hidden {
+    display: none;
 }
 .logo {
     font-weight: 100;
@@ -315,14 +321,29 @@ footer {
     display: flex;
     flex-direction: column;
 }
-pre {
+pre.recovery {
     padding: 1rem;
     background-color: var(--neutral);
     color: var(--neutral-inverse);
-    max-width: 500px;
-    overflow-x: scroll;
-    font-family: var(--code);
-    font-size:large;
+    font-family: monospace;
+    font-size: large;
+    text-align: center;
+}
+#loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--neutral);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s ease-in-out infinite;
+    -webkit-animation: spin 1s ease-in-out infinite;
+}
+@keyframes spin {
+    to { -webkit-transform: rotate(360deg); }
+}
+@-webkit-keyframes spin {
+    to { -webkit-transform: rotate(360deg); }
 }
 @media only screen and (min-width: 600px) {
     .container {

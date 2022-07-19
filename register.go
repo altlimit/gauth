@@ -2,7 +2,6 @@ package gauth
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/altlimit/gauth/form"
 )
@@ -62,7 +61,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ga.rateLimiter.RateLimit(ctx, realIP(r), 3, time.Hour*1); err != nil {
+	if err := ga.rateLimiter.RateLimit(ctx, realIP(r), ga.RateLimit.Register.Rate, ga.RateLimit.Register.Duration); err != nil {
 		ga.writeJSON(http.StatusTooManyRequests, w, errorResponse{Error: "Try again later"})
 		return
 	}
@@ -84,9 +83,9 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	ok := "SENT"
-	if !sent {
-		ok = "OK"
+	status := http.StatusOK
+	if sent {
+		status = http.StatusCreated
 	}
-	ga.writeJSON(http.StatusOK, w, ok)
+	ga.writeJSON(status, w, nil)
 }

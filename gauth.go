@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/altlimit/gauth/cache"
 	"github.com/altlimit/gauth/email"
@@ -66,8 +67,17 @@ type (
 		// Page branding
 		Brand form.Brand
 
+		RateLimit RateLimit
+
 		rateLimiter cache.RateLimiter
 		emailSender email.Sender
+	}
+
+	RateLimit struct {
+		Login        cache.Rate
+		Register     cache.Rate
+		ResetLink    cache.Rate
+		ConfirmEmail cache.Rate
 	}
 
 	errorResponse struct {
@@ -200,9 +210,9 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 	tab := "2FA"
 	tabs = append(tabs, tab)
 
-	fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "hidden", SettingsTab: tab})
+	fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "2fa", SettingsTab: tab})
 	fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})
-	fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "textarea", Label: "Generate Recovery Codes", SettingsTab: tab})
+	fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "recovery", Label: "Generate Recovery Codes", SettingsTab: tab})
 
 	for _, f := range ga.AccountFields {
 		tab = strings.Split(f.SettingsTab, ",")[0]
@@ -215,7 +225,7 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 			fields = append(fields, f)
 
 			if f.ID == ga.PasswordFieldID {
-				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, Validate: ga.confirmPass, SettingsTab: f.SettingsTab})
+				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, SettingsTab: f.SettingsTab})
 			}
 		}
 	}
@@ -230,24 +240,16 @@ func (ga *GAuth) registerFields() (fields []*form.Field) {
 			fields = append(fields, f)
 
 			if f.ID == ga.PasswordFieldID {
-				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, Validate: ga.confirmPass, SettingsTab: f.SettingsTab})
+				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, SettingsTab: f.SettingsTab})
 			}
 		}
 	}
 	return
 }
 
-func (ga *GAuth) confirmPass(fID string, d map[string]string) error {
-	s := d[fID]
-	if s != d[ga.PasswordFieldID] {
-		return errors.New("password do not match")
-	}
-	return nil
-}
-
 func (ga *GAuth) resetFields() (fields []*form.Field) {
 	pwField := ga.fieldByID(ga.PasswordFieldID)
-	confPw := &form.Field{ID: pwField.ID + "_confirm", Label: "Confirm " + pwField.Label, Type: pwField.Type, Validate: ga.confirmPass}
+	confPw := &form.Field{ID: pwField.ID + "_confirm", Label: "Confirm " + pwField.Label, Type: pwField.Type}
 	fields = append(fields, pwField, confPw)
 	return
 }
@@ -304,6 +306,30 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 	if ga.BCryptCost == 0 {
 		ga.BCryptCost = 13
+	}
+	if ga.RateLimit.Login.Rate == 0 {
+		ga.RateLimit.Login = cache.Rate{
+			Rate:     10,
+			Duration: time.Hour,
+		}
+	}
+	if ga.RateLimit.Register.Rate == 0 {
+		ga.RateLimit.Register = cache.Rate{
+			Rate:     5,
+			Duration: time.Hour,
+		}
+	}
+	if ga.RateLimit.ConfirmEmail.Rate == 0 {
+		ga.RateLimit.ConfirmEmail = cache.Rate{
+			Rate:     5,
+			Duration: time.Hour,
+		}
+	}
+	if ga.RateLimit.ResetLink.Rate == 0 {
+		ga.RateLimit.ResetLink = cache.Rate{
+			Rate:     5,
+			Duration: time.Hour,
+		}
 	}
 
 	buf.WriteString("Settings")

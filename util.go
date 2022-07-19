@@ -19,6 +19,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	recovChars = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+)
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -179,4 +183,12 @@ func unverifiedClaims(t string) (jwt.MapClaims, error) {
 		return claims, nil
 	}
 	return nil, errors.New("invalid claims")
+}
+
+func randSeq(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = recovChars[rand.Intn(len(recovChars))]
+	}
+	return string(b)
 }

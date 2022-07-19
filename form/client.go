@@ -1,9 +1,14 @@
 package form
 
 var clientJS = `
-document.addEventListener('alpine:init', () => {
+document.addEventListener('alpine:init', function() {
     function sendRequest(method, url, data, onSuccess, onError) {
-        var xhr = new XMLHttpRequest();
+		if (!onError) {
+			onError = function(err) {
+				Alpine.store('notify').alert("danger", err.error);
+			}
+		}
+        let xhr = new XMLHttpRequest();
         if ("withCredentials" in xhr) {
             xhr.open(method, url, true);
         } else if (typeof XDomainRequest != "undefined") {
@@ -18,9 +23,9 @@ document.addEventListener('alpine:init', () => {
 		if (accTok) {
 			xhr.setRequestHeader('Authorization', 'Bearer ' + accTok)
 		}
-		xhr.onreadystatechange = function (oEvent) {
+		xhr.onreadystatechange = function() {
 			if (xhr.readyState === 4) {
-				this.sending = false;
+				Alpine.store("values").loading = false;
 				const result = xhr.responseText ? JSON.parse(xhr.responseText) : {};
 				if (result.error) {
 					if (xhr.status === 401 && accTok) {
@@ -29,10 +34,11 @@ document.addEventListener('alpine:init', () => {
 					}
 					onError(result, xhr.status);
 				} else {
-					onSuccess(result);
+					onSuccess(result, xhr.status);
 				}
 			}
-		}.bind(this);
+		};
+		Alpine.store("values").loading = true;
 		xhr.send(data ? JSON.stringify(data) : undefined);
     }
 	const env = document.getElementById("env").dataset;
@@ -56,7 +62,7 @@ document.addEventListener('alpine:init', () => {
 		} catch {
 			sessionStorage.removeItem("atok");
 		}
-		sendRequest("GET", bPath(env.refresh), null, function(r) {
+		sendRequest("GET", bPath(env.refresh), null, (r) => {
 			sessionStorage.setItem("atok", r.access_token);
 			onSuccess(r.access_token);
 		}, function (err, code) {
@@ -67,16 +73,14 @@ document.addEventListener('alpine:init', () => {
 			Alpine.store('notify').alert("danger", err.error);
 		});
 	}
-	Alpine.store('recaptcha', {
-		value: null
-	});
+	Alpine.store('values', { recaptcha: null, loading: false });
 	Alpine.store('notify', {
 		alertId: 0,
 		alerts: [],
 		close: function (index) {
 			this.alerts.splice(index, 1);
 		},
-		alert: function(type, message) {
+		alert: function (type, message) {
 			this.alerts.push({type: type, message: message, id: ++this.alertId});
 			const self = this;
 			setTimeout(function() {
@@ -124,65 +128,94 @@ document.addEventListener('alpine:init', () => {
 		}
 	}
 	Alpine.data('form', function() {
+		const isAccount = location.pathname === bPath(env.account);
+		const isLogin = location.pathname === bPath(env.login);
+		const isRegister = location.pathname === bPath(env.register);
+		const confirmFields = [];
 		return {
 			init: function () {
-				const self = this;
 				if (query.a === "verify") {
-					this.loading = true;
-					sendRequest("POST", actPath, {action: query.a, token: query.t}, function(r) {
+					sendRequest("POST", actPath, {action: query.a, token: query.t}, (r) => {
 						sessionStorage.setItem("alertSuccess", "Email Verified");
 						location.href = "?";
-						self.loading = false;
-					}, function (err) {
+					}, (err) => {
 						sessionStorage.setItem("alertDanger", err.error);
 						location.href = "?";
-						self.loading = false;
 					});
 				}
-				if (location.pathname === bPath(env.account)) {
-					const self = this;
-					accessToken(function() {
+				if (isAccount) {
+					accessToken(() => {
 						if (query.a === "emailupdate") {
-							sendRequest("POST", actPath, {action: query.a, token: query.t}, function() {
+							sendRequest("POST", actPath, {action: query.a, token: query.t}, () => {
 								location.href = bPath(env.account);
-							}, function (err, code) {
-								Alpine.store('notify').alert("danger", err.error);
 							});
 							return;
 						}
-						sendRequest("GET", location.pathname, null, function(r) {
-							self.original = JSON.stringify(r);
-							self.input = r;
-							Alpine.effect(() => {
-								if (Alpine.store("nav").tab) {
-									console.log("Moved tab");
-									self.input = JSON.parse(self.original);
-								}
-							});
-						}, function (err, code) {
-							Alpine.store('notify').alert("danger", err.error);
+						sendRequest("GET", location.pathname, null, (r) => {
+							this.updateAccount(r);
 						});
 					});
+					Alpine.effect(() => {
+						if (Alpine.store("nav").tab && this.original) {
+							this.input = JSON.parse(this.original);
+							this.updateAccount();
+						}
+					});
+				} else if (isLogin) {
+					this.$refs.field_code.classList.add("hidden");
+				}
+				const els = document.querySelectorAll("input[id$=_confirm]");
+				for(let i = 0; i < els.length; i++) {
+					confirmFields.push(els[i].id.substring(0, els[i].id.indexOf("_confirm")));
 				}
 			},
 			original: null,
 			input: {},
 			hide: {},
 			errors: {},
-			loading: false,
+			mfa: {},
+			updateAccount: function(acct, reset) {
+				if (acct) {
+					this.original = JSON.stringify(acct);
+					this.input = acct;
+					if (this.input.totpsecret === "1") {
+						this.mfa.url = null;
+					}
+				}
+				if (this.input.totpsecret === "1" && !reset) {
+					this.$refs.field_code.classList.add("hidden");
+				} else if (!this.mfa.url || reset) {
+					sendRequest("POST", actPath, {action:"newTotpKey"}, (r) => {
+						this.mfa.url = actPath + "?qr=" + encodeURIComponent(r.url);
+						this.mfa.secret = r.secret;
+						this.$refs.field_code.classList.remove("hidden");
+					});
+				}
+			},
+			genRecovery: function() {
+				sendRequest("POST", actPath, {action:"newRecovery"}, (r) => {
+					this.mfa.recovery = r.join("\n");
+				});
+			},
 			submit: function (e) {
 				this.errors = {};
 				if (this.input.terms !== undefined) {
 					this.input.terms = this.input.terms ? "agree" : "";
 				}
+				for (let i = 0; i < confirmFields.length; i++) {
+					const field = confirmFields[i];
+					if (this.input[field] && this.input[field] !== this.input[field + "_confirm"]) {
+						this.errors[field + "_confirm"] = "password do not match";
+						return;
+					}
+				}
 				if (window.grecaptcha) {
-					if (!Alpine.store("recaptcha").value) {
+					if (!Alpine.store("values").recaptcha) {
 						this.errors.recaptcha = "required";
 						return;
 					}
-					this.input.recaptcha = Alpine.store("recaptcha").value;
+					this.input.recaptcha = Alpine.store("values").recaptcha;
 				}
-				this.loading = true;
 				let path = location.pathname;
 				if (query.a || e.act) {
 					path = actPath;
@@ -197,31 +230,43 @@ document.addEventListener('alpine:init', () => {
 					confirmemail: "Confirmation link sent!"
 				};
 				const input = this.input;
-				sendRequest("POST", path, this.input, function(r) {
+				for (let k in input) {
+					if (!input[k]) delete(input[k]);
+				}
+				if (input.code) {
+					this.input.totpsecret = this.mfa.secret;
+				}
+				if (this.mfa.recovery) {
+					this.input.recoverycodes = this.mfa.recovery.split("\n").join("|");
+					this.mfa.recovery = null;
+				}
+				sendRequest("POST", path, input, (r, code) => {
 					if (input.action && success[input.action]) {
 						sessionStorage.setItem("alertSuccess", success[input.action]);
 						location.href = "?";
 						return;
 					}
-					if (location.pathname === bPath(env.login)) {
+					if (isLogin) {
 						accessToken(function() {
 							location.href = query.r ? query.r : env.base + env.account;
 						});
-					} else if (location.pathname === bPath(env.register)) {
-						sessionStorage.setItem("alertSuccess", r === "SENT" ? "Email confirmation link sent to your email." : "Registration success!");
+					} else if (isRegister) {
+						sessionStorage.setItem("alertSuccess", code === 201 ? "Email confirmation link sent to your email." : "Registration success!");
 						location.href = bPath(env.login);
-					} else if (location.pathname === bPath(env.account)) {
-						Alpine.store('notify').alert("success", "Updated!");
+					} else if (isAccount) {
+						this.updateAccount(r);
+						Alpine.store('notify').alert("success", code === 201 ? "Email update link sent to your email." : "Updated!");
 					}
-					this.loading = false;
 				}, function (err) {
-					this.loading = false;
-					Alpine.store("recaptcha").value = null;
+					Alpine.store("values").recaptcha = null;
 					if (window.grecaptcha) {
 						window.grecaptcha.reset(window.recaptcha);
 					}
 					if (err.error === "validation") {
 						this.errors = err.data;
+						if (isLogin) {
+							this.$refs.field_code.classList[this.errors.code ? "remove":"add"]("hidden");
+						}
 					} else {
 						Alpine.store('notify').alert("danger", err.error);
 					}
@@ -237,8 +282,7 @@ window.recaptchaCallback = function() {
 	window.recaptcha = grecaptcha.render(recaptchaField, {
 		sitekey: recaptchaField.dataset.key,
 		callback: function(resp) {
-			Alpine.store("recaptcha").value = resp;
-			console.log("Recaptcha", resp);
+			Alpine.store("values").recaptcha = resp;
 		},
 	});
 };

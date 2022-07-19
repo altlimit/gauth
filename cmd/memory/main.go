@@ -22,6 +22,8 @@ type (
 		Active        bool
 		TotpSecretKey string
 		RecoveryCodes string
+		Question      string
+		Answer        string
 	}
 )
 
@@ -55,6 +57,8 @@ func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (map[str
 		"name":                     u.Name,
 		"password":                 u.Password,
 		"email":                    u.Email,
+		"question":                 u.Question,
+		"answer":                   u.Answer,
 		gauth.FieldActiveID:        "0",
 		gauth.FieldTOTPSecretID:    u.TotpSecretKey,
 		gauth.FieldRecoveryCodesID: u.RecoveryCodes,
@@ -78,6 +82,8 @@ func (mp *memoryProvider) IdentitySave(ctx context.Context, uid string, data map
 	u.Email = data["email"]
 	u.Name = data["name"]
 	u.Password = data["password"]
+	u.Question = data["question"]
+	u.Answer = data["answer"]
 	// check for built-in fields and update
 	if v, ok := data[gauth.FieldActiveID]; ok {
 		u.Active = v == "1"

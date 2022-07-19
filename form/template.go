@@ -10,21 +10,34 @@ var formTemplate = `{{define "content"}}
             {{.Title}}
         </h1>
         {{range .Fields}}
-            <div class="field" {{if $.Tabs}}x-show="$store.nav.isTab('{{.SettingsTab}}')"{{end}}>
-                <label for="{{.ID}}">{{.Label}}</label>
-                {{if eq .Type "select"}}
-                    <select id="{{.ID}}" x-model="input.{{.ID}}">
-                    {{range .Options}}
-                        <option value="{{.ID}}">{{.Label}}</option>
-                    {{end}}
-                    </select>
-                {{else if eq .Type "textarea"}}
-                    <textarea id="{{.ID}}" x-model="input.{{.ID}}" rows=5></textarea>
+            <div class="field" x-ref="field_{{.ID}}" {{if $.Tabs}}x-show="$store.nav.isTab('{{.SettingsTab}}')"{{end}}>
+                {{if eq .Type "2fa"}}
+                    <img x-show="mfa.url" :src="mfa.url" width="200" id="{{.ID}}" />
+                    <a x-show="input.totpsecret === '1'" @click="updateAccount(null, true)">Reset 2FA</a>
+                {{else if eq .Type "recovery"}}
+                    <div x-show="input.totpsecret === '1'">
+                        <a @click="genRecovery">Generate Recovery Codes</a>
+                        <div x-show="mfa.recovery">
+                            <pre class="recovery" x-text="mfa.recovery"></pre>
+                            <span class="help">This will only be shown to you once. Hit save to activate.</span>
+                        </div>
+                    </div>
                 {{else}}
-                    <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
+                    <label for="{{.ID}}">{{.Label}}</label>
+                    {{if eq .Type "select"}}
+                        <select id="{{.ID}}" x-model="input.{{.ID}}">
+                        {{range .Options}}
+                            <option value="{{.ID}}">{{.Label}}</option>
+                        {{end}}
+                        </select>
+                    {{else if eq .Type "textarea"}}
+                        <textarea id="{{.ID}}" x-model="input.{{.ID}}" rows=5></textarea>
+                    {{else}}
+                        <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
+                    {{end}}
+                    <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
+                    <a @click="submit({act:'confirmemail'})" x-show="errors.{{.ID}} === 'inactive'">Re-Send Verification Link</a>
                 {{end}}
-                <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
-                <a @click="submit({act:'confirmemail'})" x-show="errors.{{.ID}} === 'inactive'">Re-Send Verification Link</a>
             </div>
         {{end}}
         {{if .Terms}}
@@ -43,7 +56,14 @@ var formTemplate = `{{define "content"}}
         </div>
         {{end}}
         <div class="action-panel">
-            <button type="submit" class="button">{{.Submit}}</button>
+            <button type="submit" class="button" :disabled="$store.values.loading">
+                <template x-if="$store.values.loading">
+                    <span id="loading"></span>
+                </template>
+                <template x-if="!$store.values.loading">
+                    <span>{{.Submit}}</span>
+                </template>
+            </button>
             <div class="list">
             {{range .Links}}
                 <a href="{{.URL}}" class="link">&#x25B6; {{.Label}}</a>

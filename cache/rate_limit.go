@@ -14,10 +14,14 @@ type (
 		RateLimit(ctx context.Context, key string, rate int, t time.Duration) error
 	}
 
-	// RateLimitError info
-	RateLimitError struct {
+	Rate struct {
 		Rate     int
 		Duration time.Duration
+	}
+
+	// RateLimitError info
+	RateLimitError struct {
+		Rate Rate
 	}
 
 	MemoryRateLimit struct {
@@ -33,7 +37,7 @@ type (
 )
 
 func (rle RateLimitError) Error() string {
-	return fmt.Sprintf("Rate limit exceeded: %d requests in %s", rle.Rate, rle.Duration.String())
+	return fmt.Sprintf("Rate limit exceeded: %d requests in %s", rle.Rate.Rate, rle.Rate.Duration.String())
 }
 
 func NewMemoryRateLimit() *MemoryRateLimit {
@@ -72,7 +76,7 @@ func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int,
 		item.Value = val + 1
 	}
 	if val > rate {
-		return RateLimitError{Rate: rate, Duration: t}
+		return RateLimitError{Rate: Rate{Rate: rate, Duration: t}}
 	}
 	mrl.Cache[key] = item
 	return nil

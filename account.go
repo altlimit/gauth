@@ -2,6 +2,7 @@ package gauth
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/altlimit/gauth/form"
 	"github.com/pquerna/otp/totp"
@@ -34,13 +35,29 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			ga.internalError(w, err)
 			return
 		}
-		switch r.Method {
-		case http.MethodGet:
-			// remove fields
-			delFields := []string{ga.PasswordFieldID, FieldActiveID, FieldRecoveryCodesID, FieldTOTPSecretID}
+
+		delFields := []string{ga.PasswordFieldID, FieldActiveID, FieldRecoveryCodesID, FieldTOTPSecretID}
+		skipFields := make(map[string]bool)
+		for _, v := range delFields {
+			skipFields[v] = true
+		}
+		skipFields[FieldCodeID] = true
+		cleanAccount := func() {
+			totpEnabled := acct[FieldTOTPSecretID] != ""
+			recovEnabled := acct[FieldRecoveryCodesID] != ""
 			for _, v := range delFields {
 				delete(acct, v)
 			}
+			if totpEnabled {
+				acct[FieldTOTPSecretID] = "1"
+			}
+			if recovEnabled {
+				acct[FieldRecoveryCodesID] = "1"
+			}
+		}
+		switch r.Method {
+		case http.MethodGet:
+			cleanAccount()
 			ga.writeJSON(http.StatusOK, w, acct)
 			return
 		case http.MethodPost:
@@ -55,8 +72,12 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			for _, f := range fields {
 				fieldsByID[f.ID] = f
 				// only validate fields that are present
-				if _, ok := req[f.ID]; ok {
+				if val, ok := req[f.ID]; ok {
 					valFields = append(valFields, f)
+
+					if _, ok := skipFields[f.ID]; !ok {
+						acct[f.ID] = val
+					}
 				}
 			}
 			vErrs := ga.validateFields(valFields, req)
@@ -72,17 +93,32 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			totpSecret := req[FieldTOTPSecretID]
-			code := req[FieldCodeID]
-			if totpSecret != "" && code != "" {
-				if !totp.Validate(code, totpSecret) {
-					ga.validationError(w, FieldCodeID, "invalid")
-					return
+			if req[FieldRecoveryCodesID] != "" {
+				var codes []string
+				for _, val := range strings.Split(req[FieldRecoveryCodesID], "|") {
+					code, err := hashPassword(val, ga.BCryptCost)
+					if err != nil {
+						ga.internalError(w, err)
+						return
+					}
+					codes = append(codes, code)
 				}
-				acct[FieldTOTPSecretID] = totpSecret
+				acct[FieldRecoveryCodesID] = strings.Join(codes, "|")
+			}
+			if req[FieldTOTPSecretID] == "0" {
+				acct[FieldTOTPSecretID] = ""
+			} else if code, ok := req[FieldCodeID]; ok && len(code) > 0 {
+				totpSecret := req[FieldTOTPSecretID]
+				if totpSecret != "" {
+					if !totp.Validate(code, totpSecret) {
+						ga.validationError(w, FieldCodeID, "invalid")
+						return
+					}
+					acct[FieldTOTPSecretID] = totpSecret
+				}
 			}
 
-			resp := "OK"
+			status := http.StatusOK
 			if req[ga.EmailFieldID] != acct[ga.EmailFieldID] {
 				ok, err := ga.sendMail(ctx, actionEmailUpdate, auth.UID, req)
 				if err != nil {
@@ -90,7 +126,8 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if ok {
-					resp = "SENT"
+					// using for sent email
+					status = http.StatusCreated
 				}
 			}
 
@@ -99,7 +136,8 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 				ga.internalError(w, err)
 				return
 			}
-			ga.writeJSON(http.StatusOK, w, resp)
+			cleanAccount()
+			ga.writeJSON(status, w, acct)
 			return
 		}
 

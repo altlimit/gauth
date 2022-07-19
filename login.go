@@ -45,6 +45,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 			if ga.PasswordFieldID != "" {
 				fc.Fields = append(fc.Fields, ga.fieldByID(ga.PasswordFieldID))
+				fc.Fields = append(fc.Fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code"})
 				if ga.emailSender != nil && ga.EmailFieldID != "" {
 					fc.Links = append(fc.Links, &form.Link{
 						URL:   "?a=resetlink",
@@ -81,8 +82,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.validationError(w, valErrs...)
 		return
 	}
-	loginKey := "login:" + strings.ToLower(identity)
-	if err := ga.rateLimiter.RateLimit(ctx, loginKey, 10, time.Hour); err != nil {
+	if err := ga.rateLimiter.RateLimit(ctx, "login:"+strings.ToLower(identity), ga.RateLimit.Login.Rate, ga.RateLimit.Login.Duration); err != nil {
 		if _, ok := err.(cache.RateLimitError); ok {
 			ga.validationError(w, ga.IdentityFieldID, "try again later")
 			return
@@ -114,12 +114,34 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if totpSecret, ok := account[FieldTOTPSecretID]; ok && len(totpSecret) > 0 {
-		_, ok := req[FieldCodeID]
+		code, ok := req[FieldCodeID]
 		if !ok {
 			ga.validationError(w, FieldCodeID, "required")
 			return
 		}
-		if !totp.Validate(req[FieldCodeID], totpSecret) {
+		usedRecovery := false
+		if len(code) == 10 {
+			recovery, ok := account[FieldRecoveryCodesID]
+			if ok && len(recovery) > 0 {
+				var unused []string
+				for _, val := range strings.Split(recovery, "|") {
+					if !usedRecovery && validPassword(val, code) {
+						usedRecovery = true
+						continue
+					}
+					unused = append(unused, val)
+				}
+				if usedRecovery {
+					account[FieldRecoveryCodesID] = strings.Join(unused, "|")
+					_, err = ga.AccountProvider.IdentitySave(ctx, uid, account)
+					if err != nil {
+						ga.internalError(w, err)
+						return
+					}
+				}
+			}
+		}
+		if !usedRecovery && !totp.Validate(code, totpSecret) {
 			ga.validationError(w, FieldCodeID, "invalid")
 			return
 		}
