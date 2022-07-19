@@ -98,7 +98,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 					ga.internalError(w, err)
 					return
 				}
-				ga.writeJSON(http.StatusOK, w, "OK")
+				ga.writeJSON(http.StatusOK, w, nil)
 				return
 			}
 		}
@@ -135,7 +135,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		ga.writeJSON(http.StatusOK, w, "OK")
+		ga.writeJSON(http.StatusOK, w, nil)
 		return
 	case actionReset:
 		// endpoint for password reset
@@ -188,7 +188,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				ga.internalError(w, err)
 				return
 			}
-			ga.writeJSON(http.StatusOK, w, "OK")
+			ga.writeJSON(http.StatusOK, w, nil)
 			return
 		}
 		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
@@ -224,7 +224,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		ga.writeJSON(http.StatusOK, w, "OK")
+		ga.writeJSON(http.StatusOK, w, nil)
 	case actionEmailUpdate:
 		// this is the action when you click the link from your new email
 		// this will update your account with the new email, an access token is required
@@ -258,7 +258,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 					ga.internalError(w, err)
 					return
 				}
-				ga.writeJSON(http.StatusOK, w, "OK")
+				ga.writeJSON(http.StatusOK, w, nil)
 				return
 			}
 		}

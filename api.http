@@ -9,7 +9,7 @@ POST {{baseURL}}/register
     "email": "a@a.a",
     "name": "Tester",
     "password": "P@ssw0rd",
-    "terms": "agree"
+    "terms": true
 }
 
 ###

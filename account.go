@@ -42,6 +42,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			skipFields[v] = true
 		}
 		skipFields[FieldCodeID] = true
+		skipFields[ga.EmailFieldID] = true
 		cleanAccount := func() {
 			totpEnabled, okT := data[FieldTOTPSecretID].(string)
 			recovEnabled, okR := data[FieldRecoveryCodesID].(string)
@@ -119,7 +120,9 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			status := http.StatusOK
-			if req[ga.EmailFieldID] != data[ga.EmailFieldID] {
+			nEmail, _ := req[ga.EmailFieldID].(string)
+			oEmail, _ := data[ga.EmailFieldID].(string)
+			if nEmail != oEmail {
 				ok, err := ga.sendMail(ctx, actionEmailUpdate, auth.UID, req)
 				if err != nil {
 					ga.internalError(w, err)

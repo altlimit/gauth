@@ -135,7 +135,7 @@ document.addEventListener('alpine:init', function() {
 		return {
 			init: function () {
 				if (query.a === "verify") {
-					sendRequest("POST", actPath, {action: query.a, token: query.t}, (r) => {
+					sendRequest("POST", actPath, {action: query.a, token: query.t}, () => {
 						sessionStorage.setItem("alertSuccess", "Email Verified");
 						location.href = "?";
 					}, (err) => {
@@ -199,9 +199,6 @@ document.addEventListener('alpine:init', function() {
 			},
 			submit: function (e) {
 				this.errors = {};
-				if (this.input.terms !== undefined) {
-					this.input.terms = this.input.terms ? "agree" : "";
-				}
 				for (let i = 0; i < confirmFields.length; i++) {
 					const field = confirmFields[i];
 					if (this.input[field] && this.input[field] !== this.input[field + "_confirm"]) {

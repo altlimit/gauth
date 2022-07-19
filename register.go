@@ -36,7 +36,8 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vErrs := ga.validateFields(ga.registerFields(), req)
-	if ga.Path.Terms != "" && req[FieldTermsID] != "agree" {
+	agree, _ := req[FieldTermsID].(bool)
+	if ga.Path.Terms != "" && !agree {
 		vErrs[FieldTermsID] = "required"
 	}
 	if len(vErrs) > 0 {
