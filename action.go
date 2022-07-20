@@ -48,7 +48,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		ga.writeJSON(http.StatusOK, w, recovery)
 		return
 	case "newTotpKey":
-		auth, err := ga.Authorized(ga.headerToken(r))
+		auth, err := ga.Authorized(r)
 		if err != nil {
 			ga.log("AuthorizedError: ", err)
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
@@ -229,7 +229,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		// this is the action when you click the link from your new email
 		// this will update your account with the new email, an access token is required
 		// to make sure you are logged in before you can trigger an email update
-		auth, err := ga.Authorized(ga.headerToken(r))
+		auth, err := ga.Authorized(r)
 		if err != nil {
 			ga.log("AuthorizedError: ", err)
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})

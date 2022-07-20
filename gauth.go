@@ -68,6 +68,7 @@ type (
 
 		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
 		RefreshTokenCookieName string
+		Disable2FA             bool
 
 		// Page branding
 		Brand form.Brand
@@ -174,7 +175,11 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (ga *GAuth) Authorized(t string) (*Auth, error) {
+func (ga *GAuth) Authorized(r *http.Request) (*Auth, error) {
+	t := ga.headerToken(r)
+	if t == "" {
+		return nil, errors.New("no token")
+	}
 	claims, err := ga.tokenClaims(t, "")
 	if err != nil {
 		return nil, fmt.Errorf("tokenAuth: %v", err)
@@ -231,7 +236,7 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 	var fields []*form.Field
 
 	tab := "2FA"
-	if ga.PasswordFieldID != "" {
+	if ga.PasswordFieldID != "" && !ga.Disable2FA {
 		tabs = append(tabs, tab)
 		fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "2fa", SettingsTab: tab})
 		fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})

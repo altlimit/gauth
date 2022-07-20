@@ -37,12 +37,7 @@ func (ga *GAuth) AuthMiddleware(next http.Handler) http.Handler {
 		}
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := ga.headerToken(r)
-		if token == "" {
-			errorUnauthorized(w, r)
-			return
-		}
-		auth, err := ga.Authorized(token)
+		auth, err := ga.Authorized(r)
 		if err != nil {
 			ga.log("AuthError: ", err)
 			errorUnauthorized(w, r)

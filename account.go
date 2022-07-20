@@ -22,7 +22,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 	fc.Tabs = tabs
 
 	if ga.isJson(r) {
-		auth, err := ga.Authorized(ga.headerToken(r))
+		auth, err := ga.Authorized(r)
 		if err != nil {
 			ga.log("AuthorizedError: ", err)
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
@@ -123,14 +123,18 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			nEmail, _ := req[ga.EmailFieldID].(string)
 			oEmail, _ := data[ga.EmailFieldID].(string)
 			if nEmail != oEmail {
-				ok, err := ga.sendMail(ctx, actionEmailUpdate, auth.UID, req)
-				if err != nil {
-					ga.internalError(w, err)
-					return
-				}
-				if ok {
-					// using for sent email
-					status = http.StatusCreated
+				if ga.emailSender == nil {
+					data[ga.EmailFieldID] = nEmail
+				} else {
+					ok, err := ga.sendMail(ctx, actionEmailUpdate, auth.UID, req)
+					if err != nil {
+						ga.internalError(w, err)
+						return
+					}
+					if ok {
+						// using for sent email
+						status = http.StatusCreated
+					}
 				}
 			}
 
