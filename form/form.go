@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -12,8 +13,6 @@ import (
 
 var (
 	formTpl *template.Template
-
-	layouts = []string{layout, nav}
 
 	alpineHash  string
 	clientHash  string
@@ -36,7 +35,6 @@ type (
 
 		Links  []*Link
 		Fields []*Field
-		Terms  bool
 
 		Submit string
 	}
@@ -49,6 +47,7 @@ type (
 	Field struct {
 		ID          string
 		Label       string
+		LabelHtml   template.HTML
 		Type        string
 		Options     []Option
 		Validate    ValidateFunc
@@ -92,28 +91,26 @@ type (
 	}
 )
 
-func init() {
-	var err error
-	formTpl, err = template.New("form").Parse(formTemplate)
-	if err != nil {
-		panic(err)
-	}
-	for _, layout := range layouts {
-		if _, err := formTpl.Parse(layout); err != nil {
-			panic(err)
+func Render(w http.ResponseWriter, c *Config) (err error) {
+	if formTpl == nil {
+		formTpl, err = template.New("form").Parse(FormTemplate)
+		if err != nil {
+			return fmt.Errorf("form.Render: template parse error %v", err)
+		}
+		if _, err := formTpl.Parse(Layout); err != nil {
+			return fmt.Errorf("form.Render: formTpl parse error %v", err)
 		}
 	}
-
-	hasher := md5.New()
-	hasher.Write(AlpineJS)
-	alpineHash = hex.EncodeToString(hasher.Sum(nil))
-}
-
-func Render(w http.ResponseWriter, c *Config) error {
 	return formTpl.ExecuteTemplate(w, "layout", c)
 }
 
 func RenderAlpineJS(w http.ResponseWriter, r *http.Request) {
+	if alpineHash == "" {
+		hasher := md5.New()
+		hasher.Write(AlpineJS)
+		alpineHash = hex.EncodeToString(hasher.Sum(nil))
+	}
+
 	// todo maybe check accept encoding?
 	h := w.Header()
 	h.Set("Content-Encoding", "gzip")

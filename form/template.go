@@ -1,6 +1,6 @@
 package form
 
-var formTemplate = `{{define "content"}}
+var FormTemplate = `{{define "content"}}
 <div class="container" x-data="form">
     <form class="form" @submit.prevent="submit">
         <h1 class="title">
@@ -26,31 +26,35 @@ var formTemplate = `{{define "content"}}
                         </div>
                     </div>
                 {{else}}
-                    <label for="{{.ID}}">{{.Label}}</label>
-                    {{if eq .Type "select"}}
-                        <select id="{{.ID}}" x-model="input.{{.ID}}">
-                        {{range .Options}}
-                            <option value="{{.ID}}">{{.Label}}</option>
+                    {{if eq .Type "checkbox"}}
+                    <div class="checkbox">
+                        <input id="{{.ID}}" type="checkbox" x-model="input.{{.ID}}"/>
+                        <label for="{{.ID}}">
+                        {{if .LabelHtml}}
+                            {{.LabelHtml}}
+                        {{else}}
+                            {{.Label}}
                         {{end}}
-                        </select>
-                    {{else if eq .Type "textarea"}}
-                        <textarea id="{{.ID}}" x-model="input.{{.ID}}" rows=5></textarea>
+                        </label>
+                    </div>
                     {{else}}
-                        <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
+                        <label for="{{.ID}}">{{.Label}}</label>
+                        {{if eq .Type "select"}}
+                            <select id="{{.ID}}" x-model="input.{{.ID}}">
+                            {{range .Options}}
+                                <option value="{{.ID}}">{{.Label}}</option>
+                            {{end}}
+                            </select>
+                        {{else if eq .Type "textarea"}}
+                            <textarea id="{{.ID}}" x-model="input.{{.ID}}" rows=5></textarea>
+                        {{else}}
+                            <input id="{{.ID}}" type="{{.Type}}" x-model="input.{{.ID}}"/>
+                        {{end}}
                     {{end}}
                     <span class="help danger" x-show="errors.{{.ID}}" x-text="errors.{{.ID}}"></span>
                     <a @click="submit({act:'confirmemail'})" x-show="errors.{{.ID}} === 'inactive'">Re-Send Verification Link</a>
                 {{end}}
             </div>
-        {{end}}
-        {{if .Terms}}
-        <div class="field">
-            <div class="checkbox">
-                <input id="agreeTerms" type="checkbox" value="agree" x-model="input.terms"/>
-                <label for="agreeTerms">I agree to the <a href="{{.Path.Terms}}">terms and agreement</a>.</label>
-            </div>
-            <span class="help danger" x-show="errors.terms" x-text="errors.terms"></span>
-        </div>
         {{end}}
         {{if .Recaptcha}}
         <div class="field">

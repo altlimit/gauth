@@ -103,9 +103,7 @@ func (mp *memoryProvider) CreateAccessToken(ctx context.Context, uid string, ref
 }
 
 func TestGAuth(t *testing.T) {
-	ga := gauth.NewDefault(&memoryProvider{})
-	ga.Brand.AppName = "Demo Memory"
-	ga.Brand.AppURL = "http://localhost:8887"
+	ga := gauth.NewDefault("Demo Memory", "http://localhost:8887", &memoryProvider{})
 	ga.Path.Terms = "/terms"
 	ga.AccountFields = append(ga.AccountFields,
 		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},

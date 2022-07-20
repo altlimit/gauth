@@ -1,6 +1,6 @@
 package form
 
-var layout = `{{define "layout"}}
+var Layout = `{{define "layout"}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -274,26 +274,33 @@ footer {
     align-items: center;
     background-color: var(--neutral-inverse);
     color: var(--neutral);
+    padding:1px;
 }
 .back {
     padding: 1rem;
+    white-space: nowrap;
 }
 .nav {
     display: inline-flex;
+    flex-wrap: wrap;
     flex-direction: row;
     align-items: center;
+    justify-items: center;
+    justify-content: space-evenly;
     gap: 2px;
+    width:100%;
 }
-.nav a:not(:last-child) {
-    border-right: solid 1px var(--accent);
+.nav a {
+    background-color: var(--primary-inverse);
+    flex-grow: 1;
 }
 .nav > a {
     text-decoration: none;
-    width: 100%;
-    padding: 1rem;
+    width: auto;
+    padding: 0.5rem 1rem;
     text-align: center;
     font-weight: 500;
-    color: var(--neutral);
+    color: var(--primary);
 }
 .nav > a:hover {
     color: var(--primary);
@@ -405,6 +412,9 @@ pre.recovery {
     }
     .nav > a {
         padding: 0.5rem 3rem;
+        background-color: transparent;
+        color: var(--neutral);
+        width: 100%;
     }
 }
 </style>
@@ -445,9 +455,8 @@ pre.recovery {
     </div>
 </body>
 </html>
-{{end}}`
+{{end}}
 
-var nav = `
 {{ define "nav"}}
 <div class="nav-panel" x-data>
     <a href="{{.Path.Home}}" class="link back">&#x1F844; Home</a>

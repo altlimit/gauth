@@ -22,4 +22,8 @@ type (
 	ResetPassword interface {
 		ResetPassword() (subject string, parts []Part)
 	}
+
+	LoginEmail interface {
+		LoginEmail() (subject string, parts []Part)
+	}
 )

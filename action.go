@@ -268,18 +268,3 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "unknown action"})
 	}
 }
-
-func (ga *GAuth) qrKeyHandler(w http.ResponseWriter, r *http.Request) {
-	keyURL := r.URL.Query().Get("k")
-	key, err := otp.NewKeyFromURL(keyURL)
-	if err != nil {
-		ga.internalError(w, err)
-		return
-	}
-	img, err := key.Image(200, 200)
-	if err != nil {
-		ga.internalError(w, err)
-		return
-	}
-	png.Encode(w, img)
-}

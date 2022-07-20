@@ -101,9 +101,7 @@ func dashboardHandler() http.Handler {
 
 func main() {
 	port := "8887"
-	ga := gauth.NewDefault(&memoryProvider{})
-	ga.Brand.AppName = "Demo Memory"
-	ga.Brand.AppURL = "http://localhost:" + port
+	ga := gauth.NewDefault("Demo Memory", "http://localhost:"+port, &memoryProvider{})
 	ga.Path.Terms = "/terms"
 	ga.AccountFields = append(ga.AccountFields,
 		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},
@@ -116,6 +114,15 @@ func main() {
 	)
 	http.Handle("/auth/", ga.MustInit(true))
 	http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
+
+	// passwordless
+	ga = gauth.NewPasswordless("Passwordless", "http://localhost:"+port, &memoryProvider{})
+	ga.Path.Base = "/pwless"
+	ga.AccountFields = append(ga.AccountFields,
+		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},
+	)
+	http.Handle("/pwless/", ga.MustInit(true))
+
 	log.Println("Listening: " + port)
 	http.ListenAndServe(":"+port, nil)
 }

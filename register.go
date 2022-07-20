@@ -9,16 +9,18 @@ import (
 
 func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
+		if ga.PasswordFieldID == "" {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
 		fc := ga.formConfig()
+		fc.Recaptcha = ga.RecaptchaSiteKey
 		fc.Title = "Register"
 		fc.Submit = "Register"
 		fc.Links = append(fc.Links, &form.Link{
 			URL:   ga.Path.Base + ga.Path.Login,
 			Label: "Login",
 		})
-		if ga.Path.Terms != "" {
-			fc.Terms = true
-		}
 		fc.Fields = ga.registerFields()
 		if err := form.Render(w, fc); err != nil {
 			ga.internalError(w, err)

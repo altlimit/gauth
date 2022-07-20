@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -50,6 +51,7 @@ type (
 		PasswordFieldID string
 
 		// Path for login, register, etc
+		// defaults to /login /register /account /refresh
 		Path   form.Path
 		Logger *log.Logger
 
@@ -96,7 +98,7 @@ var (
 )
 
 // NewDefault returns a sane default for GAuth, you can override properties
-func NewDefault(ap AccountProvider) *GAuth {
+func NewDefault(appName string, appURL string, ap AccountProvider) *GAuth {
 	ga := &GAuth{
 		AccountProvider: ap,
 		EmailFieldID:    "email",
@@ -106,13 +108,32 @@ func NewDefault(ap AccountProvider) *GAuth {
 			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
 			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, SettingsTab: "Password"},
 		},
-		Path: form.Path{
-			Account:  "/account",
-			Login:    "/login",
-			Register: "/register",
-			Refresh:  "/refresh",
+		Brand: form.Brand{
+			AppName:        appName,
+			AppURL:         appURL,
+			Primary:        "#121111",
+			PrimaryInverse: "#fefefe",
+			Accent:         "#BDBBBB",
+			Neutral:        "#555454",
+			NeutralInverse: "#f1f1f1",
+		},
+		RefreshTokenCookieName: "rtoken",
+	}
+	return ga
+}
+
+// NewPasswordless returns a passwordless login settings
+func NewPasswordless(appName string, appURL string, ap AccountProvider) *GAuth {
+	ga := &GAuth{
+		AccountProvider: ap,
+		EmailFieldID:    "email",
+		IdentityFieldID: "email",
+		AccountFields: []*form.Field{
+			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
 		},
 		Brand: form.Brand{
+			AppName:        appName,
+			AppURL:         appURL,
 			Primary:        "#121111",
 			PrimaryInverse: "#fefefe",
 			Accent:         "#BDBBBB",
@@ -135,8 +156,6 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ga.refreshHandler(w, r)
 	case ga.Path.Account:
 		ga.accountHandler(w, r)
-	case "/qrkey":
-		ga.qrKeyHandler(w, r)
 	case "/action":
 		ga.actionHandler(w, r)
 	case "/email-template":
@@ -194,7 +213,6 @@ func (ga *GAuth) formConfig() *form.Config {
 		Brand:       ga.Brand,
 		Path:        ga.Path,
 		AlpineJSURL: ga.AlpineJSURL,
-		Recaptcha:   ga.RecaptchaSiteKey,
 	}
 }
 
@@ -213,11 +231,12 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 	var fields []*form.Field
 
 	tab := "2FA"
-	tabs = append(tabs, tab)
-
-	fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "2fa", SettingsTab: tab})
-	fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})
-	fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "recovery", Label: "Generate Recovery Codes", SettingsTab: tab})
+	if ga.PasswordFieldID != "" {
+		tabs = append(tabs, tab)
+		fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "2fa", SettingsTab: tab})
+		fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})
+		fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "recovery", Label: "Generate Recovery Codes", SettingsTab: tab})
+	}
 
 	for _, f := range ga.AccountFields {
 		tab = strings.Split(f.SettingsTab, ",")[0]
@@ -248,6 +267,13 @@ func (ga *GAuth) registerFields() (fields []*form.Field) {
 				fields = append(fields, &form.Field{ID: f.ID + "_confirm", Label: "Re-Type " + f.Label, Type: f.Type, SettingsTab: f.SettingsTab})
 			}
 		}
+	}
+	if ga.Path.Terms != "" {
+		fields = append(fields, &form.Field{
+			ID:        FieldTermsID,
+			Type:      "checkbox",
+			LabelHtml: template.HTML(fmt.Sprintf(`I agree to the <a href="%s">terms and agreement</a>.`, ga.Path.Terms)),
+		})
 	}
 	return
 }
@@ -282,17 +308,16 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	if ga.Brand.AppURL == "" {
 		panic("AppURL brand missing")
 	}
-	if ga.Path.Account == "" {
-		panic("Account path missing")
-	}
-	if ga.Path.Login == "" {
-		panic("Login path missing")
-	}
-	if ga.Path.Register == "" {
-		panic("Register path missing")
-	}
-	if ga.Path.Refresh == "" {
-		panic("Refresh path missing")
+	if ga.PasswordFieldID == "" {
+		if ga.IdentityFieldID != ga.EmailFieldID {
+			panic("IdentityFieldID must be same as EmailFieldID for passwordless")
+		}
+		emailField := ga.fieldByID(ga.IdentityFieldID)
+		if emailField == nil {
+			panic("identity field not found")
+		} else if emailField.Type != "email" {
+			panic("identity field must be of type email")
+		}
 	}
 
 	// check if all fields are valid
@@ -306,6 +331,19 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 
 	// Set defaults
+	if ga.Path.Account == "" {
+		ga.Path.Account = "/account"
+	}
+	if ga.Path.Login == "" {
+		ga.Path.Login = "/login"
+	}
+	if ga.PasswordFieldID != "" && ga.Path.Register == "" {
+		ga.Path.Register = "/register"
+	}
+	if ga.Path.Refresh == "" {
+		ga.Path.Refresh = "/refresh"
+	}
+
 	if ga.StructTag == "" {
 		ga.StructTag = "gauth"
 	}

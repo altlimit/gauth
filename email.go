@@ -14,6 +14,7 @@ const (
 	actionVerify      = "verify"
 	actionEmailUpdate = "emailupdate"
 	actionReset       = "reset"
+	actionLogin       = "login"
 )
 
 func (ga *GAuth) emailHandler(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,19 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		ed := ga.emailData()
 
 		switch action {
+		case actionLogin:
+			ed.Subject = "Login / Register Link"
+			ed.Data = []email.Part{
+				{P: "Click the link below to login or register"},
+				{URL: link, Label: "Login"},
+			}
+
+			if evm, ok := ga.AccountProvider.(email.LoginEmail); ok {
+				ed.Subject, ed.Data = evm.LoginEmail()
+				if ed.Subject != "" {
+					ed.ReplaceLink(link)
+				}
+			}
 		case actionVerify:
 			ed.Subject = "Verify Your Email"
 			ed.Data = []email.Part{

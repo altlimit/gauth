@@ -127,6 +127,12 @@ document.addEventListener('alpine:init', function() {
 			sessionStorage.removeItem(alerts[k]);
 		}
 	}
+	function goLogin() {
+		accessToken(function() {
+			location.href = query.r || sessionStorage.getItem("ref") || env.base + env.account;
+			sessionStorage.removeItem("ref");
+		});
+	}
 	Alpine.data('form', function() {
 		const isAccount = location.pathname === bPath(env.account);
 		const isLogin = location.pathname === bPath(env.login);
@@ -134,10 +140,20 @@ document.addEventListener('alpine:init', function() {
 		const confirmFields = [];
 		return {
 			init: function () {
+				if (query.r) {
+					sessionStorage.setItem("ref", query.r);
+				}
 				if (query.a === "verify") {
 					sendRequest("POST", actPath, {action: query.a, token: query.t}, () => {
 						sessionStorage.setItem("alertSuccess", "Email Verified");
 						location.href = "?";
+					}, (err) => {
+						sessionStorage.setItem("alertDanger", err.error);
+						location.href = "?";
+					});
+				} else if (query.a === "login") {
+					sendRequest("POST", location.pathname, {token: query.t}, () => {
+						goLogin();
 					}, (err) => {
 						sessionStorage.setItem("alertDanger", err.error);
 						location.href = "?";
@@ -244,9 +260,13 @@ document.addEventListener('alpine:init', function() {
 						return;
 					}
 					if (isLogin) {
-						accessToken(function() {
-							location.href = query.r ? query.r : env.base + env.account;
-						});
+						if (!input.password && code === 201) {
+							const el = document.querySelectorAll("input[type=email]")[0];
+							this.input[el.id] = null;
+							Alpine.store('notify').alert("success", "An email was sent to " + input[el.id] + ".");
+						} else {
+							goLogin();
+						}
 					} else if (isRegister) {
 						sessionStorage.setItem("alertSuccess", code === 201 ? "Email confirmation link sent to your email." : "Registration success!");
 						location.href = bPath(env.login);
@@ -261,7 +281,7 @@ document.addEventListener('alpine:init', function() {
 					}
 					if (err.error === "validation") {
 						this.errors = err.data;
-						if (isLogin) {
+						if (isLogin && this.$refs.field_code) {
 							this.$refs.field_code.classList[this.errors.code ? "remove":"add"]("hidden");
 						}
 					} else {
