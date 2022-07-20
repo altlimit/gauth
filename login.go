@@ -117,7 +117,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		claims, err := ga.tokenStringClaims(identity, "")
 		if err != nil || claims["act"] != actionLogin {
 			ga.log("verify token error", err)
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		identity = claims["uid"]
@@ -279,12 +279,12 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	claims, err := ga.tokenStringClaims(req.Token, "")
 	if err != nil {
 		ga.log("tokenStringClaims error", err)
-		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
+		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
 		return
 	}
 	cid, ok := claims["cid"]
 	if !ok {
-		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: "invalid refresh token"})
+		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
 		return
 	}
 

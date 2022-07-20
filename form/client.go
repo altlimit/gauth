@@ -27,7 +27,7 @@ document.addEventListener('alpine:init', function() {
 			if (xhr.readyState === 4) {
 				Alpine.store("values").loading = false;
 				const result = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-				if (result.error) {
+				if (xhr.status >= 400) {
 					if (xhr.status === 401 && accTok) {
 						sessionStorage.removeItem("atok");
 						if (location.pathname !== bPath(env.login)) toLogin();
@@ -68,9 +68,8 @@ document.addEventListener('alpine:init', function() {
 		}, function (err, code) {
 			if (code === 401 && location.pathname !== bPath(env.login)) {
 				toLogin();
-				return;
-			}
-			Alpine.store('notify').alert("danger", err.error);
+			} else if (code !== 401)
+				Alpine.store('notify').alert("danger", err.error);
 		});
 	}
 	Alpine.store('values', { recaptcha: null, loading: false });
@@ -163,6 +162,7 @@ document.addEventListener('alpine:init', function() {
 					accessToken(() => {
 						if (query.a === "emailupdate") {
 							sendRequest("POST", actPath, {action: query.a, token: query.t}, () => {
+								sessionStorage.setItem("alertSuccess", "Email updated!");
 								location.href = bPath(env.account);
 							});
 							return;

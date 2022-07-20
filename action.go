@@ -80,7 +80,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		claims, err := ga.tokenStringClaims(req["token"], "")
 		if err != nil || claims["act"] != actionVerify {
 			ga.log("verify token error", err)
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		uid := claims["uid"]
@@ -102,7 +102,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 		return
 	case "resetlink":
 		// sends a password reset link
@@ -151,7 +151,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		uclaim, err := unverifiedClaims(req["token"])
 		if err != nil || uclaim["act"] != actionReset {
 			ga.log("unverified token error", err)
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		uid := uclaim["uid"].(string)
@@ -165,7 +165,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		account, err := ga.AccountProvider.IdentityLoad(ctx, uid)
 		if err == ErrAccountNotFound {
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		acct := ga.loadIdentity(account)
@@ -173,7 +173,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		claims, err := ga.tokenStringClaims(req["token"], pw)
 		if err != nil || uid != claims["uid"] {
 			ga.log("verify token error", err)
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		if claims["act"] == actionReset {
@@ -191,7 +191,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			ga.writeJSON(http.StatusOK, w, nil)
 			return
 		}
-		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 		return
 	case "confirmemail":
 		// used for resending verification link
@@ -238,7 +238,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 		uclaim, err := unverifiedClaims(req["token"])
 		if err != nil || uclaim["act"] != actionEmailUpdate {
 			ga.log("unverified token error", err)
-			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+			ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 			return
 		}
 		email, ok := uclaim["email"].(string)
@@ -262,7 +262,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: "invalid token"})
+		ga.writeJSON(http.StatusForbidden, w, errorResponse{Error: http.StatusText(http.StatusForbidden)})
 		return
 	default:
 		ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: "unknown action"})

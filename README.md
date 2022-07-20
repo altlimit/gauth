@@ -157,7 +157,7 @@ You can now use your `access_token` in `Authorization: Bearer ...` for your auth
 
 ```json
 {
-    "error": "invalid token"
+    "error": "Unauthorized"
 }
 ```
 
