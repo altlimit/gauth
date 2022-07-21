@@ -4,8 +4,6 @@
 
 Login, registration library for go using your own models. This has a built-in UI for login, register and account pages. Optionally just use json endpoints. This is a standalone auth system that is embedded to your application.
 
-There still might be changes in the default refresh/access token behaviour if there's good suggestions out there. Please feel free to suggest feedbacks, suggestions or features.
-
 ---
 * [Install](#install)
 * [Features](#features)
