@@ -2,6 +2,8 @@ package gauth
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,18 +122,6 @@ func randomJWTKey() ([]byte, error) {
 	return key, nil
 }
 
-func structToMap(src interface{}) (map[string]interface{}, error) {
-	dst := new(map[string]interface{})
-	b, err := json.Marshal(src)
-	if err != nil {
-		return nil, fmt.Errorf("structToMap json.Marshal error %v", err)
-	}
-	if err := json.Unmarshal(b, dst); err != nil {
-		return nil, fmt.Errorf("structToMap json.Unmarshal error %v", err)
-	}
-	return *dst, nil
-}
-
 func validRecaptcha(secret string, response string, ip string) error {
 	type verify struct {
 		Success bool `json:"success"`
@@ -191,4 +181,11 @@ func randSeq(n int) string {
 		b[i] = recovChars[rand.Intn(len(recovChars))]
 	}
 	return string(b)
+}
+
+func clientFromRequest(r *http.Request, key string) string {
+	cid := realIP(r) + r.Header.Get("User-Agent") + key
+	h := sha1.New()
+	h.Write([]byte(cid))
+	return hex.EncodeToString(h.Sum(nil))
 }

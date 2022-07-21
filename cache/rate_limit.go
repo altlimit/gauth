@@ -25,9 +25,7 @@ type (
 	}
 
 	MemoryRateLimit struct {
-		Cache map[string]*CacheItem
-
-		lock sync.Mutex
+		cache sync.Map
 	}
 
 	CacheItem struct {
@@ -41,21 +39,20 @@ func (rle RateLimitError) Error() string {
 }
 
 func NewMemoryRateLimit() *MemoryRateLimit {
-	mrl := &MemoryRateLimit{
-		Cache: make(map[string]*CacheItem),
-	}
+	mrl := &MemoryRateLimit{}
 	// clears cache every 10 minute
 	go func() {
 		for {
 			time.Sleep(time.Minute * 10)
 			now := time.Now()
-			mrl.lock.Lock()
-			for k, v := range mrl.Cache {
-				if v.Expires.Before(now) {
-					delete(mrl.Cache, k)
+			mrl.cache.Range(func(key, value interface{}) bool {
+				if c, ok := value.(*CacheItem); ok {
+					if c.Expires.Before(now) {
+						mrl.cache.Delete(key)
+					}
 				}
-			}
-			mrl.lock.Unlock()
+				return true
+			})
 		}
 	}()
 	return mrl
@@ -63,9 +60,11 @@ func NewMemoryRateLimit() *MemoryRateLimit {
 
 func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int, t time.Duration) error {
 	key = "rate:" + key
-	mrl.lock.Lock()
-	defer mrl.lock.Unlock()
-	item, ok := mrl.Cache[key]
+	var item *CacheItem
+	cache, ok := mrl.cache.Load(key)
+	if ok {
+		item, _ = cache.(*CacheItem)
+	}
 	now := time.Now()
 	if !ok || item.Expires.Before(now) {
 		item = &CacheItem{Value: 0, Expires: now.Add(t)}
@@ -78,6 +77,6 @@ func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int,
 	if val > rate {
 		return RateLimitError{Rate: Rate{Rate: rate, Duration: t}}
 	}
-	mrl.Cache[key] = item
+	mrl.cache.Store(key, item)
 	return nil
 }

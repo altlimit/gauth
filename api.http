@@ -32,14 +32,19 @@ POST {{baseURL}}/login
 ###
 
 GET {{baseURL}}/refresh
-Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc3MjYwNjAsInN1YiI6IjEifQ.1FR9nUJC7C01xrWihn2WFqIZmL4gQrrWN6C9FYHfIzc; Expires=Wed, 13 Jul 2022 15:27:40 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
+Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiIyZDg4NTllZmJmOGM3ZDM0ODM5YzlmOTM1NTM5NDU2OTNiOWNiNGUyIiwiZXhwIjoxNjU4NTE0NTk3LCJzdWIiOiIxIn0.tFa8jKtLXozruRlcZxIWUEkUn7QmMudmhJJ_fsQpbQc; Expires=Wed, 13 Jul 2022 15:27:40 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
+
+###
+
+DELETE {{baseURL}}/refresh
+Cookie: rtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiIyZDg4NTllZmJmOGM3ZDM0ODM5YzlmOTM1NTM5NDU2OTNiOWNiNGUyIiwiZXhwIjoxNjU4NTE0NTk3LCJzdWIiOiIxIn0.tFa8jKtLXozruRlcZxIWUEkUn7QmMudmhJJ_fsQpbQc; Expires=Wed, 13 Jul 2022 15:27:40 GMT; Max-Age=86400; HttpOnly; Secure; SameSite=Strict
 
 ###
 
 POST {{baseURL}}/refresh
 
 {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiJjaWQxMjMiLCJleHAiOjE2NTc5OTE3MDMsInN1YiI6IjEifQ.1rkvN0zLigqPq7lCOnwNLoNxE2vykTeUmPoj93oK1jw"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaWQiOiIzZGRiZjFkZTk3YzIyMTA5ZWNkNTMyZmE0YjUzMWZkZmYyMjI4NjlhIiwiZXhwIjoxNjU4NTE0NDI0LCJzdWIiOiIxIn0.RX5UwHxfgAhdiTtbOuVz5eh2z8X7NKmsEco3J8t2TIE"
 }
 
 ###

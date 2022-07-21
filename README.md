@@ -91,13 +91,15 @@ func (ap *accountProvider) SendEmail(ctx context.Context, toEmail, subject, text
 	return nil
 }
 
-// Customize how refresh token is created, by default it uses a "cid" claim "refresh"
+// Customize how refresh token is created, by default it uses sha1(ip+userAgent+passwordHash)
+// so it can be invalidated by password update
 func (ap *accountProvider) CreateRefreshToken(ctx context.Context, uid string) (string, error) {
 	// You can generate a list of DB logins for this user ID to easily revoke/logout this token
     // then use this loginID here and return it
 	return login.ID, nil
 }
 
+// Default behaviour of logout is in memory cid blacklist in an LRU memory cache with 1000 capacity.
 func (ap *accountProvider) DeleteRefreshToken(ctx context.Context, uid, cid string) error {
     // This is called on logout you should revoke your cid here, load your login and delete it
     return deleteLogged(ctx, uid, cid)
@@ -109,6 +111,8 @@ type Permission struct {
     Owner bool    `json:"owner"`
     Roles []int64 `json:"role_ids"`
 }
+// Default behaviour of CreateAccessToken is it checks cid against current request cid, you can access the *http.Request
+// from context under RequestKey if needed.
 func (ap *accountProvider) CreateAccessToken(ctx context.Context, uid string, cid string) (interface{}, error) {
 	// We return any kind of permission that this user ID have, cid here is provided also but not necessarily needed.
     // without implementing this your grants will simply be "access"
@@ -124,8 +128,8 @@ Once you have those implemented, you can either wrap any logged in page with `Au
 ```go
 ga := gauth.NewDefault("Example", "http://localhost:8888", &accountProvider{})
 http.Handle("/auth/", ga.MustInit(false))
-// here your dashboard call must have Authorization: Bearer {accessToken} or it will return 401
-http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
+// here your me handler must have Authorization: Bearer {accessToken} or it will return 401
+http.Handle("/api/me", ga.AuthMiddleware(meHandler()))
 
 // you could also create your own middleware and use ga.Authorized(r) to check for auth
 auth, err := ga.Authorized(r)
@@ -139,6 +143,8 @@ user := LoadYourUser(auth.UID)
 perms := &Permission{}
 err = auth.Load(perms);
 ```
+
+In a single page application, you can regenerate a new access token by doing a `GET` request to `/auth/refresh` by default it has a cookie in there to give you an access token when you login. You'll need to also refresh it before it expires or just make it built-in to your http client.
 
 ## Endpoints
 
@@ -170,7 +176,7 @@ These are customizable fields under `AccountFields`. The `IdentityFieldID` is yo
 
 ### Error Response
 
-**Code** : `400 BAD REQUEST`
+**Code** : `400 Bad Request`
 
 Field: error message will be provided on any type of errors, depending on your provided validator you'll get the same message here.
 

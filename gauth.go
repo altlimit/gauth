@@ -74,11 +74,16 @@ type (
 		Brand form.Brand
 
 		RateLimit RateLimit
+		Timeout   Timeout
+
 		// defaults to "gauth"
 		StructTag string
 
-		rateLimiter cache.RateLimiter
-		emailSender email.Sender
+		rateLimiter          cache.RateLimiter
+		emailSender          email.Sender
+		refreshTokenProvider RefreshTokenProvider
+		accessTokenProvider  AccessTokenProvider
+		lru                  *cache.LRUCache
 	}
 
 	RateLimit struct {
@@ -86,6 +91,17 @@ type (
 		Register     cache.Rate
 		ResetLink    cache.Rate
 		ConfirmEmail cache.Rate
+	}
+
+	Timeout struct {
+		// 7 days default
+		EmailToken time.Duration
+		// 1 day default
+		RefreshToken time.Duration
+		// 7 days default
+		RefreshTokenRemember time.Duration
+		// 1 hour default
+		AccessToken time.Duration
 	}
 
 	errorResponse struct {
@@ -173,31 +189,6 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, notFound, http.StatusNotFound)
 	}
-}
-
-func (ga *GAuth) Authorized(r *http.Request) (*Auth, error) {
-	t := ga.headerToken(r)
-	if t == "" {
-		return nil, errors.New("no token")
-	}
-	claims, err := ga.tokenClaims(t, "")
-	if err != nil {
-		return nil, fmt.Errorf("tokenAuth: %v", err)
-	}
-	auth := &Auth{
-		UID: claims["sub"].(string),
-	}
-	if grants, ok := claims["grants"]; ok {
-		if g, ok := grants.(string); ok && g == "access" {
-			return auth, nil
-		}
-		auth.Grants, err = json.Marshal(grants)
-		if err != nil {
-			return nil, fmt.Errorf("tokenAuth: marshal error %v", err)
-		}
-		return auth, nil
-	}
-	return nil, errors.New("invalid access token")
 }
 
 func (ga *GAuth) emailData() *email.Data {
@@ -336,6 +327,7 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 
 	// Set defaults
+	ga.lru = cache.NewLRUCache(1000)
 	if ga.Path.Account == "" {
 		ga.Path.Account = "/account"
 	}
@@ -382,7 +374,18 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 			Duration: time.Hour,
 		}
 	}
-
+	if ga.Timeout.AccessToken == 0 {
+		ga.Timeout.AccessToken = time.Hour
+	}
+	if ga.Timeout.RefreshToken == 0 {
+		ga.Timeout.RefreshToken = time.Hour * 24
+	}
+	if ga.Timeout.RefreshTokenRemember == 0 {
+		ga.Timeout.RefreshTokenRemember = time.Hour * 24 * 7
+	}
+	if ga.Timeout.EmailToken == 0 {
+		ga.Timeout.EmailToken = time.Hour * 24 * 7
+	}
 	buf.WriteString("Settings")
 	if ga.JwtKey == nil {
 		key, err := randomJWTKey()
@@ -416,6 +419,22 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		buf.WriteString("Yes")
 	} else {
 		buf.WriteString("No")
+	}
+	buf.WriteString("\n > RefreshTokenProvider: ")
+	if rtp, ok := ga.AccountProvider.(RefreshTokenProvider); ok {
+		ga.refreshTokenProvider = rtp
+		buf.WriteString("Custom")
+	} else {
+		ga.refreshTokenProvider = &DefaultRefreshTokenProvider{ga: ga}
+		buf.WriteString("Built-in")
+	}
+	buf.WriteString("\n > AccessTokenProvider: ")
+	if atp, ok := ga.AccountProvider.(AccessTokenProvider); ok {
+		ga.accessTokenProvider = atp
+		buf.WriteString("Custom")
+	} else {
+		ga.accessTokenProvider = &DefaultAccessTokenProvider{ga: ga}
+		buf.WriteString("Built-in")
 	}
 	buf.WriteString("\n > EmailField: ")
 	if ga.EmailFieldID != "" {
@@ -521,14 +540,6 @@ func (ga *GAuth) badError(w http.ResponseWriter, err error) {
 	ga.log("BadRequestError", err)
 	ga.writeJSON(http.StatusBadRequest, w,
 		map[string]string{"error": http.StatusText(http.StatusBadRequest)})
-}
-
-func (ga *GAuth) headerToken(r *http.Request) string {
-	auth := strings.Split(r.Header.Get("Authorization"), " ")
-	if len(auth) == 2 && strings.ToLower(auth[0]) == "bearer" {
-		return auth[1]
-	}
-	return ""
 }
 
 func (ga *GAuth) tokenStringClaims(tok, key string) (map[string]string, error) {

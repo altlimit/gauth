@@ -1,6 +1,6 @@
 package email
 
-var htmlTemplate = `<!DOCTYPE html>
+var Template = `<!DOCTYPE html>
 <html>
 
 <head>

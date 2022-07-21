@@ -6,11 +6,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"testing"
 )
 
 func TestUpdateAlpineJS(t *testing.T) {
+	if os.Getenv("VSCODE_HANDLES_SIGPIPE") != "true" {
+		t.Skip("Only run manually")
+	}
 	url := "https://unpkg.com/alpinejs@3.10.2/dist/cdn.min.js"
 	resp, err := http.Get(url)
 	if err != nil {

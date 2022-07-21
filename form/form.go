@@ -128,7 +128,6 @@ func RenderAlpineJS(w http.ResponseWriter, r *http.Request) {
 
 func RenderClientJS(w http.ResponseWriter, r *http.Request) {
 	// todo maybe check accept encoding?
-
 	if clientCache == nil {
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)

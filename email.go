@@ -47,8 +47,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 			claims["email"] = toEmail
 			actPath = ga.Path.Account
 		}
-		// todo make this configurable
-		claims["exp"] = time.Now().Add(time.Hour * 24 * 3).Unix()
+		claims["exp"] = time.Now().Add(ga.Timeout.EmailToken).Unix()
 		jwtKey := ga.JwtKey
 		if action == actionReset {
 			// we append password hash for password resets

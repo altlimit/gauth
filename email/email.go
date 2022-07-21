@@ -39,16 +39,15 @@ var (
 	emailTpl *template.Template
 )
 
-func init() {
-	tpl, err := template.New("email").Parse(htmlTemplate)
-	if err != nil {
-		panic(err)
-	}
-	emailTpl = tpl
-}
-
 // Parse populates Text & HTML Content returning an error
 func (e *Data) Parse(data map[string]interface{}) error {
+	if emailTpl == nil {
+		tpl, err := template.New("email").Parse(Template)
+		if err != nil {
+			return fmt.Errorf("emailData.Parse error %v", err)
+		}
+		emailTpl = tpl
+	}
 	var texts []string
 	buf := bytes.NewBufferString("")
 

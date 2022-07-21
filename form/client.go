@@ -19,7 +19,7 @@ document.addEventListener('alpine:init', function() {
 			return;
         }
 		xhr.setRequestHeader('Content-Type', 'application/json');
-		const accTok = sessionStorage.getItem("atok");
+		const accTok = Alpine.store("values").accessToken;
 		if (accTok) {
 			xhr.setRequestHeader('Authorization', 'Bearer ' + accTok)
 		}
@@ -29,7 +29,7 @@ document.addEventListener('alpine:init', function() {
 				const result = xhr.responseText ? JSON.parse(xhr.responseText) : {};
 				if (xhr.status >= 400) {
 					if (xhr.status === 401 && accTok) {
-						sessionStorage.removeItem("atok");
+						Alpine.store("values").accessToken = null;
 						if (location.pathname !== bPath(env.login)) toLogin();
 					}
 					onError(result, xhr.status);
@@ -51,7 +51,7 @@ document.addEventListener('alpine:init', function() {
 	const actPath = bPath("/action");
 	function accessToken(onSuccess) {
 		try {
-			const aTok = sessionStorage.getItem("atok");
+			const aTok = Alpine.store("values").accessToken;
 			if (aTok) {
 				const payload = JSON.parse(window.atob(aTok.split('.')[1]))
 				if (new Date().getTime() / 1000 < payload.exp) {
@@ -60,10 +60,10 @@ document.addEventListener('alpine:init', function() {
 				}
 			}
 		} catch {
-			sessionStorage.removeItem("atok");
+			Alpine.store("values").accessToken = null;
 		}
 		sendRequest("GET", bPath(env.refresh), null, (r) => {
-			sessionStorage.setItem("atok", r.access_token);
+			Alpine.store("values").accessToken = r.access_token;
 			onSuccess(r.access_token);
 		}, function (err, code) {
 			if (code === 401 && location.pathname !== bPath(env.login)) {
@@ -72,7 +72,7 @@ document.addEventListener('alpine:init', function() {
 				Alpine.store('notify').alert("danger", err.error);
 		});
 	}
-	Alpine.store('values', { recaptcha: null, loading: false });
+	Alpine.store('values', { recaptcha: null, loading: false, accessToken: null });
 	Alpine.store('notify', {
 		alertId: 0,
 		alerts: [],
@@ -100,7 +100,6 @@ document.addEventListener('alpine:init', function() {
 			return this.tab === tab.split(",")[0];
 		},
 		logout: function() {
-			sessionStorage.removeItem("atok");
 			sendRequest("DELETE", bPath(env.refresh), null, function() {
 				location.href = bPath(env.login);
 			}, function (err) {
@@ -170,12 +169,13 @@ document.addEventListener('alpine:init', function() {
 						sendRequest("GET", location.pathname, null, (r) => {
 							this.updateAccount(r);
 						});
-					});
-					Alpine.effect(() => {
-						if (Alpine.store("nav").tab && this.original) {
-							this.input = JSON.parse(this.original);
-							this.updateAccount();
-						}
+
+						Alpine.effect(() => {
+							if (Alpine.store("nav").tab && this.original) {
+								this.input = JSON.parse(this.original);
+								this.updateAccount();
+							}
+						});
 					});
 				} else if (isLogin && this.$refs.field_code) {
 					this.$refs.field_code.classList.add("hidden");
@@ -189,7 +189,7 @@ document.addEventListener('alpine:init', function() {
 			input: {},
 			hide: {},
 			errors: {},
-			mfa: {},
+			mfa: {url: null},
 			updateAccount: function(acct, reset) {
 				if (acct) {
 					this.original = JSON.stringify(acct);
@@ -198,14 +198,17 @@ document.addEventListener('alpine:init', function() {
 						this.mfa.url = null;
 					}
 				}
-				if (this.input.totpsecret === true && !reset) {
-					this.$refs.field_code.classList.add("hidden");
-				} else if (!this.mfa.url || reset) {
-					sendRequest("POST", actPath, {action:"newTotpKey"}, (r) => {
-						this.mfa.url = actPath + "?qr=" + encodeURIComponent(r.url);
-						this.mfa.secret = r.secret;
-						this.$refs.field_code.classList.remove("hidden");
-					});
+				if (this.original) {
+					if (this.input.totpsecret === true && !reset) {
+						this.$refs.field_code.classList.add("hidden");
+					} else if (this.mfa.url === null || reset) {
+						this.mfa.url = "";
+						sendRequest("POST", actPath, {action:"newTotpKey"}, (r) => {
+							this.mfa.url = actPath + "?qr=" + encodeURIComponent(r.url);
+							this.mfa.secret = r.secret;
+							this.$refs.field_code.classList.remove("hidden");
+						});
+					}
 				}
 			},
 			genRecovery: function() {

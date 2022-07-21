@@ -74,25 +74,6 @@ func (mp *memoryProvider) SendEmail(ctx context.Context, toEmail, subject, textB
 	return nil
 }
 
-func (mp *memoryProvider) CreateRefreshToken(ctx context.Context, uid string) (string, error) {
-	// create this clientID in DB and list in user Authorized List
-	clientID := "cid123"
-	return clientID, nil
-}
-
-func (mp *memoryProvider) CreateAccessToken(ctx context.Context, uid string, refresh string) (interface{}, error) {
-	// we get refresh = cid123 here which we check against db if it's still a valid client and not yet revoked
-	type grants struct {
-		Owner bool    `json:"owner"`
-		Roles []int64 `json:"role_ids"`
-	}
-
-	return grants{
-		Owner: false,
-		Roles: []int64{1, 2, 3},
-	}, nil
-}
-
 func dashboardHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`Dashboard`))

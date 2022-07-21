@@ -3,6 +3,7 @@ package gauth
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"github.com/golang-jwt/jwt/v4"
 )
@@ -46,7 +47,57 @@ type (
 
 var (
 	ErrAccountNotFound = errors.New("account not found")
-
 	// Return this error in IdentityLoad to provide Re-Send Activation link flow
 	ErrAccountNotActive = errors.New("account not active")
+	// Return in Token Providers to return 401 instead of 500
+	ErrTokenDenied = errors.New("token denied")
 )
+
+type (
+	DefaultRefreshTokenProvider struct {
+		ga *GAuth
+	}
+	DefaultAccessTokenProvider struct {
+		ga *GAuth
+	}
+)
+
+// Default behaviour of refresh token is using cid -> IP + UserAgent + PWHash
+func (dr *DefaultRefreshTokenProvider) CreateRefreshToken(ctx context.Context, uid string) (cid string, err error) {
+	if req, ok := ctx.Value(RequestKey).(*http.Request); ok {
+		pw, _ := ctx.Value(pwHashKey).(string)
+		cid := clientFromRequest(req, pw)
+		return cid, nil
+	}
+	return "", errors.New("RequestKey not found")
+}
+
+// Default behaviour of logout is in memory black list of cid that only keeps the last 500
+func (dr *DefaultRefreshTokenProvider) DeleteRefreshToken(ctx context.Context, uid, cid string) error {
+	dr.ga.lru.Put("x:"+uid+cid, true)
+	return nil
+}
+
+// Default behaviour of access token is check cid against client and current pw hash and "access" grants
+func (da *DefaultAccessTokenProvider) CreateAccessToken(ctx context.Context, uid string, cid string) (interface{}, error) {
+	if req, ok := ctx.Value(RequestKey).(*http.Request); ok {
+		_, ok := da.ga.lru.Get("x:" + uid + cid)
+		if !ok {
+			var pw string
+			if da.ga.PasswordFieldID != "" {
+				account, err := da.ga.AccountProvider.IdentityLoad(ctx, uid)
+				if err != nil {
+					return nil, err
+				}
+				data := da.ga.loadIdentity(account)
+				pw, _ = data[da.ga.PasswordFieldID].(string)
+			}
+			reqCID := clientFromRequest(req, pw)
+			if cid == reqCID {
+				return "access", nil
+			}
+		}
+		return nil, ErrTokenDenied
+	}
+	return nil, errors.New("RequestKey not found")
+}
