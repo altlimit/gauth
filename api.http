@@ -17,7 +17,8 @@ POST {{baseURL}}/register
 POST {{baseURL}}/action
 
 {
-    "verify": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY3QiOiJ2ZXJpZnkiLCJleHAiOjE2NTc4OTg4MjcsInVpZCI6IjEifQ.7vRjfS437v47ybPZiMqDIHYET6by4eUlRZjZ9hlaruQ"
+    "action": "verify",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY3QiOiJ2ZXJpZnkiLCJleHAiOjE2NTkwMzkwMTEsInVpZCI6IjEifQ.AEN2GR6Xa4uypdQ0qE9kl7A4vBcpzGi9GSkjEVJKk7I"
 }
 
 ###

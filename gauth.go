@@ -61,9 +61,7 @@ type (
 		RecaptchaSiteKey string
 		RecaptchaSecret  string
 		// JwtKey used for registration and token login
-		JwtKey []byte
-		// AesKey will encrypt/decrypt your totpsecret
-		AesKey     []byte
+		JwtKey     []byte
 		BCryptCost int
 
 		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
@@ -394,12 +392,6 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		}
 		ga.JwtKey = key
 		buf.WriteString("\n > JwtKey: RANDOM " + base64.StdEncoding.EncodeToString(key))
-	}
-	buf.WriteString("\n > AesKey: ")
-	if len(ga.AesKey) == 0 {
-		buf.WriteString("None (TOTPSecretKey will not be encrypted)")
-	} else {
-		buf.WriteString("Yes")
 	}
 	if ga.AlpineJSURL == "" {
 		ga.AlpineJSURL = "/alpine.js"

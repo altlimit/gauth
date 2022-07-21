@@ -140,6 +140,8 @@ document.addEventListener('alpine:init', function() {
 			init: function () {
 				if (query.r) {
 					sessionStorage.setItem("ref", query.r);
+				} else if (document.referrer && !sessionStorage.getItem("ref")) {
+					sessionStorage.setItem("ref", document.referrer);
 				}
 				if (query.a === "verify") {
 					sendRequest("POST", actPath, {action: query.a, token: query.t}, () => {

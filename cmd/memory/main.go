@@ -80,6 +80,21 @@ func dashboardHandler() http.Handler {
 	})
 }
 
+func homeHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html>
+		<head>
+		<title></title>
+		</head>
+		<body>
+			<a href="/auth/login">Login</a>
+			<a href="/auth/login?r=/dashboard">Dashboard</a>
+		</body>
+		</html>
+		`))
+	})
+}
+
 func main() {
 	port := "8887"
 	ga := gauth.NewDefault("Demo Memory", "http://localhost:"+port, &memoryProvider{})
@@ -95,6 +110,7 @@ func main() {
 	)
 	http.Handle("/auth/", ga.MustInit(true))
 	http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
+	http.Handle("/", homeHandler())
 
 	// passwordless
 	ga = gauth.NewPasswordless("Passwordless", "http://localhost:"+port, &memoryProvider{})
