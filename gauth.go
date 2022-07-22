@@ -37,11 +37,11 @@ const (
 type (
 	// GAuth is an HTTPServer which handles login, registration, settings, 2fa, etc.
 	GAuth struct {
-		// AccountProvider must be implemented for saving your user and notifications
-		AccountProvider AccountProvider
+		// IdentityProvider must be implemented for saving your user and notifications
+		IdentityProvider IdentityProvider
 
-		// Login/register/settings page fields
-		AccountFields []*form.Field
+		// Fields for login/register/settings page fields
+		Fields []*form.Field
 
 		// Field for email verifications
 		EmailFieldID string
@@ -66,7 +66,6 @@ type (
 
 		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
 		RefreshTokenCookieName string
-		Disable2FA             bool
 
 		// Page branding
 		Brand form.Brand
@@ -82,6 +81,8 @@ type (
 		refreshTokenProvider RefreshTokenProvider
 		accessTokenProvider  AccessTokenProvider
 		lru                  *cache.LRUCache
+		disable2FA           bool
+		disableRecovery      bool
 	}
 
 	RateLimit struct {
@@ -113,13 +114,13 @@ var (
 )
 
 // NewDefault returns a sane default for GAuth, you can override properties
-func NewDefault(appName string, appURL string, ap AccountProvider) *GAuth {
+func NewDefault(appName string, appURL string, ip IdentityProvider) *GAuth {
 	ga := &GAuth{
-		AccountProvider: ap,
-		EmailFieldID:    "email",
-		IdentityFieldID: "email",
-		PasswordFieldID: "password",
-		AccountFields: []*form.Field{
+		IdentityProvider: ip,
+		EmailFieldID:     "email",
+		IdentityFieldID:  "email",
+		PasswordFieldID:  "password",
+		Fields: []*form.Field{
 			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
 			{ID: "password", Label: "Password", Type: "password", Validate: RequiredPassword, SettingsTab: "Password"},
 		},
@@ -138,12 +139,12 @@ func NewDefault(appName string, appURL string, ap AccountProvider) *GAuth {
 }
 
 // NewPasswordless returns a passwordless login settings
-func NewPasswordless(appName string, appURL string, ap AccountProvider) *GAuth {
+func NewPasswordless(appName string, appURL string, ap IdentityProvider) *GAuth {
 	ga := &GAuth{
-		AccountProvider: ap,
-		EmailFieldID:    "email",
-		IdentityFieldID: "email",
-		AccountFields: []*form.Field{
+		IdentityProvider: ap,
+		EmailFieldID:     "email",
+		IdentityFieldID:  "email",
+		Fields: []*form.Field{
 			{ID: "email", Label: "Email", Type: "email", Validate: RequiredEmail, SettingsTab: "Account"},
 		},
 		Brand: form.Brand{
@@ -211,9 +212,9 @@ func (ga *GAuth) formConfig() *form.Config {
 }
 
 func (ga *GAuth) fieldByID(id string) *form.Field {
-	for i, f := range ga.AccountFields {
+	for i, f := range ga.Fields {
 		if f.ID == id {
-			return ga.AccountFields[i]
+			return ga.Fields[i]
 		}
 	}
 	return nil
@@ -225,14 +226,16 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 	var fields []*form.Field
 
 	tab := "2FA"
-	if ga.PasswordFieldID != "" && !ga.Disable2FA {
+	if ga.PasswordFieldID != "" && !ga.disable2FA {
 		tabs = append(tabs, tab)
 		fields = append(fields, &form.Field{ID: FieldTOTPSecretID, Type: "2fa", SettingsTab: tab})
 		fields = append(fields, &form.Field{ID: FieldCodeID, Type: "text", Label: "Enter Code", SettingsTab: tab})
-		fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "recovery", Label: "Generate Recovery Codes", SettingsTab: tab})
+		if !ga.disableRecovery {
+			fields = append(fields, &form.Field{ID: FieldRecoveryCodesID, Type: "recovery", Label: "Generate Recovery Codes", SettingsTab: tab})
+		}
 	}
 
-	for _, f := range ga.AccountFields {
+	for _, f := range ga.Fields {
 		tab = strings.Split(f.SettingsTab, ",")[0]
 		if tab != "" {
 			_, ok := mapFields[tab]
@@ -252,7 +255,7 @@ func (ga *GAuth) accountFields() ([]string, []*form.Field) {
 }
 
 func (ga *GAuth) registerFields() (fields []*form.Field) {
-	for _, f := range ga.AccountFields {
+	for _, f := range ga.Fields {
 		// Accounts,only <-- meaning not included in register form
 		if !strings.Contains(f.SettingsTab, ",only") {
 			fields = append(fields, f)
@@ -295,7 +298,13 @@ func (ga *GAuth) validateFields(fields []*form.Field, input map[string]interface
 func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	var buf bytes.Buffer
 
+	if ga.StructTag == "" {
+		ga.StructTag = "gauth"
+	}
 	// check for required stuff
+	if ga.IdentityProvider == nil {
+		panic("IdentityProvider must be implemented")
+	}
 	if ga.Brand.AppName == "" {
 		panic("AppName brand missing")
 	}
@@ -313,14 +322,28 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 			panic("identity field must be of type email")
 		}
 	}
+	identity, err := ga.IdentityProvider.IdentityLoad(context.Background(), "")
+	if identity == nil || err != ErrIdentityNotFound {
+		panic("IdentityLoad must return ErrIdentityNotFound with an empty uid")
+	}
+	data := ga.loadIdentity(identity)
+	if _, ok := data[FieldTOTPSecretID]; !ok {
+		ga.disable2FA = true
+	}
+	if _, ok := data[FieldRecoveryCodesID]; !ok {
+		ga.disableRecovery = true
+	}
 
 	// check if all fields are valid
-	for _, f := range ga.AccountFields {
+	for _, f := range ga.Fields {
 		if !validIDRe.MatchString(f.ID) {
 			panic("invalid field " + f.ID + " must be alphanumeric/_")
 		}
 		if f.ID == FieldActiveID || f.ID == FieldTOTPSecretID || f.ID == FieldRecoveryCodesID || f.ID == FieldTermsID {
 			panic("field " + f.ID + " is built-in")
+		}
+		if _, ok := data[f.ID]; !ok {
+			panic("field " + f.ID + " not found in your Identity")
 		}
 	}
 
@@ -337,10 +360,6 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 	if ga.Path.Refresh == "" {
 		ga.Path.Refresh = "/refresh"
-	}
-
-	if ga.StructTag == "" {
-		ga.StructTag = "gauth"
 	}
 	if ga.Logger == nil {
 		ga.Logger = log.Default()
@@ -406,14 +425,14 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	}
 	buf.WriteString("\n > BasePath: " + ga.Path.Base)
 	buf.WriteString("\n > Send Email: ")
-	if es, ok := ga.AccountProvider.(email.Sender); ok {
+	if es, ok := ga.IdentityProvider.(email.Sender); ok {
 		ga.emailSender = es
 		buf.WriteString("Yes")
 	} else {
 		buf.WriteString("No")
 	}
 	buf.WriteString("\n > RefreshTokenProvider: ")
-	if rtp, ok := ga.AccountProvider.(RefreshTokenProvider); ok {
+	if rtp, ok := ga.IdentityProvider.(RefreshTokenProvider); ok {
 		ga.refreshTokenProvider = rtp
 		buf.WriteString("Custom")
 	} else {
@@ -421,7 +440,7 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		buf.WriteString("Built-in")
 	}
 	buf.WriteString("\n > AccessTokenProvider: ")
-	if atp, ok := ga.AccountProvider.(AccessTokenProvider); ok {
+	if atp, ok := ga.IdentityProvider.(AccessTokenProvider); ok {
 		ga.accessTokenProvider = atp
 		buf.WriteString("Custom")
 	} else {
@@ -431,7 +450,7 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 	buf.WriteString("\n > EmailField: ")
 	if ga.EmailFieldID != "" {
 		if ga.fieldByID(ga.EmailFieldID) == nil {
-			panic("EmailFieldID not found in AccountFields")
+			panic("EmailFieldID not found in Fields")
 		}
 		buf.WriteString(ga.EmailFieldID)
 	} else {
@@ -445,12 +464,12 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		buf.WriteString("No (link login)")
 	} else {
 		if ga.fieldByID(ga.PasswordFieldID) == nil {
-			panic("PasswordFieldID not found in AccountFields")
+			panic("PasswordFieldID not found in Fields")
 		}
 		buf.WriteString(ga.PasswordFieldID)
 	}
 	buf.WriteString("\n > RateLimiter: ")
-	if rl, ok := ga.AccountProvider.(cache.RateLimiter); ok {
+	if rl, ok := ga.IdentityProvider.(cache.RateLimiter); ok {
 		ga.rateLimiter = rl
 		buf.WriteString("Custom")
 	} else {

@@ -59,12 +59,12 @@ func (mp *memoryProvider) IdentityUID(ctx context.Context, id string) (uid strin
 	for k, v := range users {
 		if v.Email == id {
 			if !v.Active {
-				return k, gauth.ErrAccountNotActive
+				return k, gauth.ErrIdentityNotActive
 			}
 			return k, nil
 		}
 	}
-	return "", gauth.ErrAccountNotFound
+	return "", gauth.ErrIdentityNotFound
 }
 
 func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (gauth.Identity, error) {
@@ -72,7 +72,7 @@ func (mp *memoryProvider) IdentityLoad(ctx context.Context, uid string) (gauth.I
 	defer lock.Unlock()
 	u, ok := users[uid]
 	if !ok {
-		return &User{}, gauth.ErrAccountNotFound
+		return &User{}, gauth.ErrIdentityNotFound
 	}
 	return u, nil
 }
@@ -105,7 +105,7 @@ func (mp *memoryProvider) CreateAccessToken(ctx context.Context, uid string, ref
 func TestGAuth(t *testing.T) {
 	ga := gauth.NewDefault("Demo Memory", "http://localhost:8887", &memoryProvider{})
 	ga.Path.Terms = "/terms"
-	ga.AccountFields = append(ga.AccountFields,
+	ga.Fields = append(ga.Fields,
 		&form.Field{ID: "name", Label: "Name", Type: "text", Validate: gauth.RequiredText, SettingsTab: "Account"},
 		&form.Field{ID: "question", Label: "Security Question", Type: "select", Validate: gauth.RequiredText, SettingsTab: "Security,only", Options: []form.Option{
 			{Label: "Pick a security question"},

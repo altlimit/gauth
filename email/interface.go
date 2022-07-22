@@ -3,7 +3,7 @@ package email
 import "context"
 
 type (
-	// Update email templates by implementing these interface in your AccountProvider.
+	// Update email templates by implementing these interface in your IdentityProvider.
 	// You can use {link} and {fieldID} for any variables.
 
 	// To allow email notification you must implement your account provider to also be an email sender

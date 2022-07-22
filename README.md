@@ -9,8 +9,15 @@ Login, registration library for go using your own models. This has a built-in UI
 * [Features](#features)
 * [Examples](#examples)
 * [How To](#how-to)
+* [Custom Tokens](#custom-tokens)
+* [Custom Emails](#custom-emails)
 * [Endpoints](#endpoints)
 ---
+## Install
+
+```sh
+go get github.com/altlimit/gauth
+```
 
 ## Features
 
@@ -21,12 +28,6 @@ Login, registration library for go using your own models. This has a built-in UI
 * Account page with customizable input and tabs, allow 2FA, password update, etc.
 * Customizable color scheme.
 
-## Install
-
-```sh
-go get github.com/altlimit/gauth
-```
-
 ## Examples
 
 Refer to `cmd/memory` for a full example that stores new accounts in memory.
@@ -35,7 +36,7 @@ Refer to `cmd/memory` for a full example that stores new accounts in memory.
 
 This library comes with a form template that you can customize the color scheme to match with your application or simply just use the json endpoints.
 
-You must implement the `AccountProvider` interface to allow `gauth` to know how to load or save your account/user. In `IdentityLoad` it returns an `Identity` interface which usually is your user model. If you don't have one, you can make any struct that would be use to store your user properties.
+You must implement the `IdentityProvider` interface to allow `gauth` to know how to load or save your account/user. In `IdentityLoad` it returns an `Identity` interface which usually is your user model. If you don't have one, you can make any struct that would be use to store your user properties.
 
 ```go
 
@@ -55,52 +56,55 @@ func (u *User) IdentitySave(ctx context.Context) (string, error) {
 	return u.ID, nil
 }
 
-func (ap *accountProvider) IdentityUID(ctx context.Context, id string) (string, error) {
+type identityProvider struct {
+
+}
+
+func (ip *identityProvider) IdentityUID(ctx context.Context, id string) (string, error) {
     // The id here is whatever you provided in IdentityFieldID - this could be email or username
     // if you support email link activation(by default it's enabled or if you have EmailFieldID provided)
-    // and it's not yet active you must return ErrAccountNotActive with the actual unique ID.
+    // and it's not yet active you must return ErrIdentityNotActive with the actual unique ID.
     if u != nil {
         if !u.Active {
-            return u.ID, gauth.ErrAccountNotActive
+            return u.ID, gauth.ErrIdentityNotActive
         }
         return u.ID, nil
     }
-    // if user does not exists return ErrAccountNotFound
-	return "", gauth.ErrAccountNotFound
+    // if user does not exists return ErrIdentityNotFound
+	return "", gauth.ErrIdentityNotFound
 }
 
-func (ap *accountProvider) IdentityLoad(ctx context.Context, uid string) (gauth.Identity, error) {
+func (ip *identityProvider) IdentityLoad(ctx context.Context, uid string) (gauth.Identity, error) {
     // You'll get the unique id you provided in IdentityUID here in uid and you should return a Identity,
     // your user model should implement the Identity interface like above with IdentitySave.
-    // If the uid is an empty string return an empty struct for your model to be created later and ErrAccountNotFound
+    // If the uid is an empty string return an empty struct for your model to be created later and ErrIdentityNotFound
 	if uid == "" {
-		return &User{}, gauth.ErrAccountNotFound
+		return &User{}, gauth.ErrIdentityNotFound
 	}
     // load user and return
 	return u, nil
 }
 
-// ------ You only need to provide above, everything starting here is optional --------
+```
 
-func (ap *accountProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
-    // to enable email sending your provider must implement email.Sender interface.
-    // using smtp, sendgrid or any transactional email api here
-	log.Println("ToEmail", toEmail, "\nSubject", subject, "\nTextBody: ", textBody)
-	return nil
+That's all you need, everything else will be optional.
+
+## Custom Tokens
+
+You can customize how your refresh and access tokens are created. The default behaviour is that your refresh token will be a JWT that has a claim `cid` which is the `sha1(IP+UserAgent+PasswordHash)`. This is invalidated by updating your password or logout will add a blacklist of `cid` for the last 1000 using in memory lru cache. Then your access token makes sure your `cid` matches before it returns the default `access` as grants which is also customizable. Without changing anything it's stateless but invalidation for logout on distributed systems will not be blocked until expiration.
+
+```go
+// called when you login
+func (ip *identityProvider) CreateRefreshToken(ctx context.Context, uid string) (string, error) {
+    // if you need access to *http.Request it's in ctx.Value(gauth.RequestKey)
+    loginID, err := newLoginForUID(ctx, uid)
+	return loginID, err
 }
 
-// Customize how refresh token is created, by default it uses sha1(ip+userAgent+passwordHash)
-// so it can be invalidated by password update
-func (ap *accountProvider) CreateRefreshToken(ctx context.Context, uid string) (string, error) {
-	// You can generate a list of DB logins for this user ID to easily revoke/logout this token
-    // then use this loginID here and return it
-	return login.ID, nil
-}
-
-// Default behaviour of logout is in memory cid blacklist in an LRU memory cache with 1000 capacity.
-func (ap *accountProvider) DeleteRefreshToken(ctx context.Context, uid, cid string) error {
+// called when you logout
+func (ip *identityProvider) DeleteRefreshToken(ctx context.Context, uid, cid string) error {
     // This is called on logout you should revoke your cid here, load your login and delete it
-    return deleteLogged(ctx, uid, cid)
+    return deleteLoginForUID(ctx, uid, cid)
 }
 
 
@@ -109,11 +113,15 @@ type Permission struct {
     Owner bool    `json:"owner"`
     Roles []int64 `json:"role_ids"`
 }
-// Default behaviour of CreateAccessToken is it checks cid against current request cid, you can access the *http.Request
-// from context under RequestKey if needed.
-func (ap *accountProvider) CreateAccessToken(ctx context.Context, uid string, cid string) (interface{}, error) {
-	// We return any kind of permission that this user ID have, cid here is provided also but not necessarily needed.
-    // without implementing this your grants will simply be "access"
+
+// called everytime you refresh and create access_token
+func (ip *identityProvider) CreateAccessToken(ctx context.Context, uid string, cid string) (interface{}, error) {
+    // check if your cid is still logged in
+    if err := isUIDLoggedIn(ctx, uid, cid); err != nil {
+        return nil, err
+    }
+    // load this users roles into your custom grants
+	roles, err := loadUserRoles(ctx, uid)
 	return Permission{
 		Owner: false,
 		Roles: []int64{1, 2, 3},
@@ -124,7 +132,7 @@ func (ap *accountProvider) CreateAccessToken(ctx context.Context, uid string, ci
 Once you have those implemented, you can either wrap any logged in page with `AuthMiddleware` or manually check with `Authorized`
 
 ```go
-ga := gauth.NewDefault("Example", "http://localhost:8888", &accountProvider{})
+ga := gauth.NewDefault("Example", "http://localhost:8888", &identityProvider{})
 http.Handle("/auth/", ga.MustInit(false))
 // here your me handler must have Authorization: Bearer {accessToken} or it will return 401
 http.Handle("/api/me", ga.AuthMiddleware(meHandler()))
@@ -143,6 +151,36 @@ err = auth.Load(perms);
 ```
 
 In a single page application, you can regenerate a new access token by doing a `GET` request to `/auth/refresh` by default it has a cookie in there to give you an access token when you login. You'll need to also refresh it before it expires or just make it built-in to your http client.
+
+## Custom Emails
+
+You can customize all emails by implementing the email interface you wish to change. You'll also need the `email.Sender` interface to actually be able to send emails.
+
+```go
+// to enable email sending your provider must implement email.Sender interface.
+func (ip *identityProvider) SendEmail(ctx context.Context, toEmail, subject, textBody, htmlBody string) error {
+    // using smtp, sendgrid or any transactional email api here
+	log.Println("ToEmail", toEmail, "\nSubject", subject, "\nTextBody: ", textBody)
+	return nil
+}
+
+// for customizing email messages
+
+// email.Confirmemail - for verifying the email
+// email.UpdateEmail - when you are updating email
+// email.ResetPassword - reset link
+// email.LoginEmail - login link for passwordless login
+
+func (ip *identityProvider) ConfirmEmail() (string, []email.Part) {
+    return "Verify Email", []email.Part{
+		{P: "Hi {name}"},
+		{P: "Please click the link below to verify"},
+		{URL: "{link}", Label: "Verify"},
+	}
+}
+```
+
+For the actual email template you'll need to update email.Template before you do any `emailData.Parse`.
 
 ## Endpoints
 
@@ -282,10 +320,7 @@ This is the same as the account page. But here you only send the fields you want
 
 ```json
 {
-    "email": "",
-    "name": "",
-    "password": "",
-    "terms": true
+    "name": ""
 }
 ```
 ### Success Response
@@ -296,7 +331,7 @@ This is the same as the account page. But here you only send the fields you want
 
 ### Error Response
 
-**Code** : `400 BAD REQUEST`
+**Code** : `400 Bad Request`
 
 Field: error message will be provided on any type of errors, depending on your provided validator you'll get the same message here.
 
@@ -304,7 +339,6 @@ Field: error message will be provided on any type of errors, depending on your p
 {
     "error": "validation",
     "data": {
-        "email": "required",
         "name": "required"
     }
 }

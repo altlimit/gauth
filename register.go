@@ -63,11 +63,11 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		ga.validationError(w, ga.IdentityFieldID, "required")
 		return
 	}
-	_, err := ga.AccountProvider.IdentityUID(ctx, id)
-	if err == nil || err == ErrAccountNotActive {
+	_, err := ga.IdentityProvider.IdentityUID(ctx, id)
+	if err == nil || err == ErrIdentityNotActive {
 		ga.validationError(w, ga.IdentityFieldID, "already registered")
 		return
-	} else if err != ErrAccountNotFound {
+	} else if err != ErrIdentityNotFound {
 		ga.internalError(w, err)
 		return
 	}
@@ -77,8 +77,8 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity, err := ga.AccountProvider.IdentityLoad(ctx, "")
-	if err != ErrAccountNotFound {
+	identity, err := ga.IdentityProvider.IdentityLoad(ctx, "")
+	if err != ErrIdentityNotFound {
 		ga.internalError(w, errors.New("IdentityLoad with empty uid got a record: "+err.Error()))
 	}
 

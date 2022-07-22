@@ -10,11 +10,11 @@ import (
 
 type (
 	Claims jwt.MapClaims
-	// AccountProvider must be implemented to login, register, update your user
-	AccountProvider interface {
+	// IdentityProvider must be implemented to login, register, update your user/account.
+	IdentityProvider interface {
 		// IdentityUID should return a unique identifier from your Identifier field(email/username)
 		// this will be use as the subject in your refresh and access token, you should return
-		// ErrAccountNotFound if it doesn't exists or ErrAccountNotActive if they are not allowed to login while inactive.
+		// ErrIdentityNotFound if it doesn't exists or ErrIdentityNotActive if they are not allowed to login while inactive.
 		IdentityUID(ctx context.Context, id string) (uid string, err error)
 		// IdentityLoad must return a struct that implements Identity interface, provide "gauth" tag
 		// to map AccountFields ID to your struct properties. If the account does not exists you must
@@ -46,9 +46,9 @@ type (
 )
 
 var (
-	ErrAccountNotFound = errors.New("account not found")
+	ErrIdentityNotFound = errors.New("identity not found")
 	// Return this error in IdentityLoad to provide Re-Send Activation link flow
-	ErrAccountNotActive = errors.New("account not active")
+	ErrIdentityNotActive = errors.New("identity not active")
 	// Return in Token Providers to return 401 instead of 500
 	ErrTokenDenied = errors.New("token denied")
 )
@@ -85,11 +85,11 @@ func (da *DefaultAccessTokenProvider) CreateAccessToken(ctx context.Context, uid
 		if !ok {
 			var pw string
 			if da.ga.PasswordFieldID != "" {
-				account, err := da.ga.AccountProvider.IdentityLoad(ctx, uid)
+				identity, err := da.ga.IdentityProvider.IdentityLoad(ctx, uid)
 				if err != nil {
 					return nil, err
 				}
-				data := da.ga.loadIdentity(account)
+				data := da.ga.loadIdentity(identity)
 				pw, _ = data[da.ga.PasswordFieldID].(string)
 			}
 			reqCID := clientFromRequest(req, pw)

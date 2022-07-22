@@ -30,12 +30,12 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ctx := r.Context()
-		account, err := ga.AccountProvider.IdentityLoad(ctx, auth.UID)
+		identity, err := ga.IdentityProvider.IdentityLoad(ctx, auth.UID)
 		if err != nil {
 			ga.internalError(w, err)
 			return
 		}
-		data := ga.loadIdentity(account)
+		data := ga.loadIdentity(identity)
 		delFields := []string{ga.PasswordFieldID, FieldActiveID, FieldRecoveryCodesID, FieldTOTPSecretID}
 		skipFields := make(map[string]bool)
 		for _, v := range delFields {
@@ -43,7 +43,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		skipFields[FieldCodeID] = true
 		skipFields[ga.EmailFieldID] = true
-		cleanAccount := func() {
+		cleanResp := func() {
 			totpEnabled, okT := data[FieldTOTPSecretID].(string)
 			recovEnabled, okR := data[FieldRecoveryCodesID].(string)
 			for _, v := range delFields {
@@ -58,7 +58,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		switch r.Method {
 		case http.MethodGet:
-			cleanAccount()
+			cleanResp()
 			ga.writeJSON(http.StatusOK, w, data)
 			return
 		case http.MethodPost:
@@ -138,12 +138,12 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			_, err = ga.saveIdentity(ctx, account, data)
+			_, err = ga.saveIdentity(ctx, identity, data)
 			if err != nil {
 				ga.internalError(w, err)
 				return
 			}
-			cleanAccount()
+			cleanResp()
 			ga.writeJSON(status, w, data)
 			return
 		}

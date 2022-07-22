@@ -132,15 +132,15 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uid, err := ga.AccountProvider.IdentityUID(ctx, identity)
-	if err == ErrAccountNotFound && !withPW {
+	uid, err := ga.IdentityProvider.IdentityUID(ctx, identity)
+	if err == ErrIdentityNotFound && !withPW {
 		// skip, no user yet
 	} else if err != nil {
-		if err == ErrAccountNotActive {
+		if err == ErrIdentityNotActive {
 			ga.validationError(w, ga.IdentityFieldID, "inactive")
 			return
 		}
-		if err == ErrAccountNotFound {
+		if err == ErrIdentityNotFound {
 			ga.validationError(w, ga.PasswordFieldID, "invalid")
 			return
 		}
@@ -148,14 +148,14 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := ga.AccountProvider.IdentityLoad(ctx, uid)
+	id, err := ga.IdentityProvider.IdentityLoad(ctx, uid)
 	if err != nil {
-		if err != ErrAccountNotFound || withPW {
+		if err != ErrIdentityNotFound || withPW {
 			ga.internalError(w, err)
 			return
 		}
 	}
-	data := ga.loadIdentity(account)
+	data := ga.loadIdentity(id)
 
 	if withPW {
 		if !validPassword(data[ga.PasswordFieldID].(string), passwd) {
@@ -182,7 +182,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 						unused = append(unused, val)
 					}
 					if usedRecovery {
-						_, err = ga.saveIdentity(ctx, account, map[string]interface{}{
+						_, err = ga.saveIdentity(ctx, id, map[string]interface{}{
 							FieldRecoveryCodesID: strings.Join(unused, "|"),
 						})
 						if err != nil {
@@ -199,7 +199,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if uid == "" {
 		// new user with passwordless system
-		uid, err = ga.saveIdentity(ctx, account, map[string]interface{}{ga.EmailFieldID: identity})
+		uid, err = ga.saveIdentity(ctx, id, map[string]interface{}{ga.EmailFieldID: identity})
 		if err != nil {
 			ga.internalError(w, err)
 			return
