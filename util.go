@@ -183,9 +183,13 @@ func randSeq(n int) string {
 	return string(b)
 }
 
-func clientFromRequest(r *http.Request, key string) string {
-	cid := realIP(r) + r.Header.Get("User-Agent") + key
+// sha1(ip+userAgent+key+$salt) + $salt
+func clientFromRequest(r *http.Request, key, salt string) string {
+	if salt == "" {
+		salt = fmt.Sprintf("$%d", time.Now().Unix())
+	}
+	cid := realIP(r) + r.Header.Get("User-Agent") + key + salt
 	h := sha1.New()
 	h.Write([]byte(cid))
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil)) + salt
 }

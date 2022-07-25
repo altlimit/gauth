@@ -97,6 +97,10 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 			if recovery, ok := req[FieldRecoveryCodesID].(string); ok && len(recovery) > 0 {
 				var codes []string
 				for _, val := range strings.Split(recovery, "|") {
+					if len(val) != 10 {
+						ga.validationError(w, FieldRecoveryCodesID, "invalid")
+						return
+					}
 					code, err := hashPassword(val, ga.BCryptCost)
 					if err != nil {
 						ga.internalError(w, err)
@@ -106,8 +110,8 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 				}
 				data[FieldRecoveryCodesID] = strings.Join(codes, "|")
 			}
-			secret, _ := req[FieldTOTPSecretID].(string)
-			if secret == "0" {
+			secret, ok := req[FieldTOTPSecretID].(string)
+			if ok && secret == "" {
 				data[FieldTOTPSecretID] = ""
 			} else if code, ok := req[FieldCodeID].(string); ok && len(code) > 0 {
 				if secret != "" {

@@ -40,7 +40,7 @@ You must implement the `IdentityProvider` interface to allow `gauth` to know how
 
 ```go
 
-// Here we create an Identity interface by adding "gauth" tag to map in the AccountFields you provided.
+// Here we create an Identity interface by adding "gauth" tag to map in the gauth.Fields you provided.
 type User struct {
     ID            string
     Name          string `gauth:"name"`
@@ -133,6 +133,8 @@ Once you have those implemented, you can either wrap any logged in page with `Au
 
 ```go
 ga := gauth.NewDefault("Example", "http://localhost:8888", &identityProvider{})
+// provide JwtKey or it will generate a random key.
+ga.JwtKey = FromYourConfig.JwtKey
 http.Handle("/auth/", ga.MustInit(false))
 // here your me handler must have Authorization: Bearer {accessToken} or it will return 401
 http.Handle("/api/me", ga.AuthMiddleware(meHandler()))
@@ -194,7 +196,7 @@ Here are the default endpoints. You can change these in your config.
 
 **Body**
 
-These are customizable fields under `AccountFields`. The `IdentityFieldID` is your email and `PasswordFieldID` for your password. This endpoint is not available if you are using passwordless system(`PasswordFieldID` is empty string). Here we have additional fields in your `AccountFields` for name and you provided `Path.Terms` so an `Agree` checkbox shows up in your registration and it's required to be `true` to successfull register.
+These are customizable fields under `Fields`. The `IdentityFieldID` is your email and `PasswordFieldID` for your password. This endpoint is not available if you are using passwordless system(`PasswordFieldID` is empty string). Here we have additional fields in your `Fields` for name and you provided `Path.Terms` so an `Agree` checkbox shows up in your registration and it's required to be `true` to successfull register.
 
 ```json
 {
@@ -294,7 +296,8 @@ You can now use your `access_token` in `Authorization: Bearer ...` for your auth
 {
     "access_token": "...",
     "token_type": "Bearer",
-    "expires_in": "86400",
+    "expires_in": 3600,
+    "scope": "access"
 }
 ```
 
@@ -318,16 +321,31 @@ You can now use your `access_token` in `Authorization: Bearer ...` for your auth
 
 This is the same as the account page. But here you only send the fields you want updated, otherwise it would trigger the validation. Updating your `EmailFieldID` would trigger an email verification without updating current email. Clicking the email will then update your email if you are logged in.
 
-```json
+```js
 {
-    "name": ""
+    "name": "",
+    // to enable 2FA (use action endpoint to create secure random secret and show QRCode image)
+    "totpsecret": "secret",
+    "code": "123123",
+    // recoverycodes are 10 character alphanumeric separated by pipe | (use action endpoint below to generate secure random codes)
+    "recoverycodes": "12345abcde|54321edcba|..."
 }
 ```
 ### Success Response
 
 **Code** : `200 OK` or `201 Created`
 
-201 means an email verification link has been sent, otherwise it's 200.
+201 means an email verification link has been sent, otherwise it's 200. Plus all the `gauth.Fields`
+
+```js
+{
+    "email": "email@example.com",
+    "name": "The Name",
+    "totpsecret": true // if 2fa is enabled otherwise it's not present
+    "recoverycodes": 10 // recovery codes remaining when generated, otherwise it's not present
+}
+```
+
 
 ### Error Response
 
@@ -374,7 +392,7 @@ Getting a token from different actions can be used here or triggers like reset l
 
 ### Error Response
 
-**Code** : `400 BAD REQUEST`
+**Code** : `400 Bad Request`
 
 Field: error message will be provided on any type of errors, depending on your provided validator you'll get the same message here.
 

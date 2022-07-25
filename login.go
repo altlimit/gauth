@@ -211,11 +211,6 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		expire = ga.Timeout.RefreshTokenRemember
 	}
 	expiry := time.Now().Add(expire)
-	refreshToken := jwt.New(jwt.SigningMethodHS256)
-	claims := refreshToken.Claims.(jwt.MapClaims)
-	claims["exp"] = expiry.Unix()
-	claims["sub"] = uid
-
 	ctx = context.WithValue(ctx, RequestKey, r)
 	if withPW {
 		ctx = context.WithValue(ctx, pwHashKey, data[ga.PasswordFieldID])
@@ -225,9 +220,7 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	claims["cid"] = cid
-
-	tok, err := refreshToken.SignedString(ga.JwtKey)
+	tok, err := ga.CreateRefreshToken(ctx, uid, cid, expiry)
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("loginHandler: SignedString error %v", err))
 		return
@@ -245,6 +238,35 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	ga.writeJSON(http.StatusOK, w, map[string]string{"refresh_token": tok})
+}
+
+// CreateRefreshToken you can use this to create custom tokens such as for API keys or anything that has a longer expiration
+// than provided configration.
+func (ga *GAuth) CreateRefreshToken(ctx context.Context, uid, cid string, expiry time.Time) (string, error) {
+	refreshToken := jwt.New(jwt.SigningMethodHS256)
+	claims := refreshToken.Claims.(jwt.MapClaims)
+	claims["exp"] = expiry.Unix()
+	claims["sub"] = uid
+	claims["cid"] = cid
+	token, err := refreshToken.SignedString(ga.JwtKey)
+	if err != nil {
+		return "", fmt.Errorf("CreateRefreshToken: SignedString error %v", err)
+	}
+	return token, nil
+}
+
+// CreateAccessToken returns an access token
+func (ga *GAuth) CreateAccessToken(ctx context.Context, sub string, grants interface{}, expiry time.Time) (string, error) {
+	accessToken := jwt.New(jwt.SigningMethodHS256)
+	accessClaims := accessToken.Claims.(jwt.MapClaims)
+	accessClaims["sub"] = sub
+	accessClaims["exp"] = expiry.Unix()
+	accessClaims["grants"] = grants
+	token, err := accessToken.SignedString(ga.JwtKey)
+	if err != nil {
+		return "", fmt.Errorf("CreateAccessToken: SignedString error %v", err)
+	}
+	return token, nil
 }
 
 func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
@@ -311,10 +333,6 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken := jwt.New(jwt.SigningMethodHS256)
-	accessClaims := accessToken.Claims.(jwt.MapClaims)
-	accessClaims["sub"] = claims["sub"]
-	accessClaims["exp"] = time.Now().Add(ga.Timeout.AccessToken).Unix()
 	ctx = context.WithValue(ctx, RequestKey, r)
 	grants, err := ga.accessTokenProvider.CreateAccessToken(ctx, claims["sub"], cid)
 	if err != nil {
@@ -325,8 +343,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		ga.internalError(w, err)
 		return
 	}
-	accessClaims["grants"] = grants
-	tok, err := accessToken.SignedString(ga.JwtKey)
+	tok, err := ga.CreateAccessToken(ctx, claims["sub"], grants, time.Now().Add(ga.Timeout.AccessToken))
 	if err != nil {
 		ga.internalError(w, fmt.Errorf("refreshHandler: SignedString error %v", err))
 		return
@@ -335,9 +352,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		"access_token": tok,
 		"token_type":   "Bearer",
 		"expires_in":   ga.Timeout.AccessToken.Seconds(),
-	}
-	if scope, ok := accessClaims["grants"]; ok {
-		resp["scope"] = scope
+		"scope":        grants,
 	}
 	ga.writeJSON(http.StatusOK, w, resp)
 }

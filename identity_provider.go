@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 )
@@ -17,7 +18,7 @@ type (
 		// ErrIdentityNotFound if it doesn't exists or ErrIdentityNotActive if they are not allowed to login while inactive.
 		IdentityUID(ctx context.Context, id string) (uid string, err error)
 		// IdentityLoad must return a struct that implements Identity interface, provide "gauth" tag
-		// to map AccountFields ID to your struct properties. If the account does not exists you must
+		// to map gauth.Fields ID to your struct properties. If the account does not exists you must
 		// return an zero/default struct Identity that will be populated for a new registration.
 		IdentityLoad(ctx context.Context, uid string) (identity Identity, err error)
 	}
@@ -66,7 +67,7 @@ type (
 func (dr *DefaultRefreshTokenProvider) CreateRefreshToken(ctx context.Context, uid string) (cid string, err error) {
 	if req, ok := ctx.Value(RequestKey).(*http.Request); ok {
 		pw, _ := ctx.Value(pwHashKey).(string)
-		cid := clientFromRequest(req, pw)
+		cid := clientFromRequest(req, pw, "")
 		return cid, nil
 	}
 	return "", errors.New("RequestKey not found")
@@ -92,7 +93,7 @@ func (da *DefaultAccessTokenProvider) CreateAccessToken(ctx context.Context, uid
 				data := da.ga.loadIdentity(identity)
 				pw, _ = data[da.ga.PasswordFieldID].(string)
 			}
-			reqCID := clientFromRequest(req, pw)
+			reqCID := clientFromRequest(req, pw, cid[strings.Index(cid, "$"):])
 			if cid == reqCID {
 				return "access", nil
 			}
