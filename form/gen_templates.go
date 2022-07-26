@@ -1,4 +1,5 @@
-//go:build ignore
+//go:build exclude
+// +build exclude
 
 // This program generates form.Template, form.Layout, form.Client & form.AlpineJS
 package main
