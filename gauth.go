@@ -83,6 +83,7 @@ type (
 		lru                  *cache.LRUCache
 		disable2FA           bool
 		disableRecovery      bool
+		debug                bool
 	}
 
 	RateLimit struct {
@@ -174,13 +175,14 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ga.accountHandler(w, r)
 	case "/action":
 		ga.actionHandler(w, r)
-	case "/email-template":
-		ga.emailHandler(w, r)
 	case "/alpine.js":
 		form.RenderAlpineJS(w, r)
 	case "/client.js":
 		form.RenderClientJS(w, r)
 	default:
+		if ga.debug && path == "/email-template" {
+			ga.emailHandler(w, r)
+		}
 		notFound := http.StatusText(http.StatusNotFound)
 		if ga.isJson(r) {
 			ga.writeJSON(http.StatusNotFound, w, errorResponse{Error: notFound})
@@ -295,7 +297,8 @@ func (ga *GAuth) validateFields(fields []*form.Field, input map[string]interface
 	return vErrs
 }
 
-func (ga *GAuth) MustInit(showInfo bool) *GAuth {
+func (ga *GAuth) MustInit(debug bool) *GAuth {
+	ga.debug = debug
 	var buf bytes.Buffer
 
 	if ga.StructTag == "" {
@@ -489,7 +492,7 @@ func (ga *GAuth) MustInit(showInfo bool) *GAuth {
 		buf.WriteString("No")
 	}
 
-	if showInfo {
+	if debug {
 		ga.log(buf.String())
 	}
 	return ga

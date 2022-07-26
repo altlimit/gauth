@@ -1,6 +1,4 @@
-package form
-
-var FormTemplate = `{{define "content"}}
+{{define "content"}}
 <div class="container" x-data="form">
     <form class="form" @submit.prevent="submit">
         <h1 class="title">
@@ -80,4 +78,3 @@ var FormTemplate = `{{define "content"}}
     </form>
 </div>
 {{end}}
-`

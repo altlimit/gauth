@@ -299,13 +299,13 @@ var Template = `<!DOCTYPE html>
                       padding-bottom: 10px;
                       padding-top: 10px;
                       font-size: 12px;
-                      color: {{.Primary}};
+                      color: {{.PrimaryInverse}};
                       text-align: center;
                     ">
                   <a href="{{.FooterURL}}" style="
                         width:100%;
                         text-decoration: underline;
-                        color: {{.Primary}};
+                        color: {{.PrimaryInverse}};
                         font-size: 12px;
                         text-align: center;
                       ">{{.FooterLabel}}</a>

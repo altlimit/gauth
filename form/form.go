@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+//go:generate go run gen_templates.go
+
 var (
 	formTpl *template.Template
 
@@ -131,7 +133,7 @@ func RenderClientJS(w http.ResponseWriter, r *http.Request) {
 	if clientCache == nil {
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
-		if _, err := gz.Write([]byte(clientJS)); err != nil {
+		if _, err := gz.Write([]byte(ClientJS)); err != nil {
 			panic(err)
 		}
 		if err := gz.Close(); err != nil {
