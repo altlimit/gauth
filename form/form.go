@@ -11,14 +11,16 @@ import (
 	"strings"
 )
 
-//go:generate go run gen_templates.go
+//go:generate go run ../cmd/assets/main.go
+//go:generate go run ../cmd/assets/main.go -asset alpine
 
 var (
 	formTpl *template.Template
 
-	alpineHash  string
-	clientHash  string
-	clientCache []byte
+	rawHash  = make(map[string]string)
+	gzHash   = make(map[string]string)
+	rawCache = make(map[string][]byte)
+	gzCache  = make(map[string][]byte)
 )
 
 type (
@@ -106,55 +108,59 @@ func Render(w http.ResponseWriter, c *Config) (err error) {
 	return formTpl.ExecuteTemplate(w, "layout", c)
 }
 
-func RenderAlpineJS(w http.ResponseWriter, r *http.Request) {
-	if alpineHash == "" {
-		hasher := md5.New()
-		hasher.Write(AlpineJS)
-		alpineHash = hex.EncodeToString(hasher.Sum(nil))
-	}
-
-	// todo maybe check accept encoding?
-	h := w.Header()
-	h.Set("Content-Encoding", "gzip")
-	h.Set("Content-Type", "application/javascript")
-	h.Set("Etag", alpineHash)
-	h.Set("Cache-Control", "max-age=86400")
-
-	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, alpineHash) {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-
-	w.Write(AlpineJS)
+func eTag(b []byte) string {
+	hasher := md5.New()
+	hasher.Write(b)
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func RenderClientJS(w http.ResponseWriter, r *http.Request) {
-	// todo maybe check accept encoding?
-	if clientCache == nil {
-		var b bytes.Buffer
-		gz := gzip.NewWriter(&b)
-		if _, err := gz.Write([]byte(ClientJS)); err != nil {
-			panic(err)
+func RenderJS(w http.ResponseWriter, r *http.Request, path string) {
+	var (
+		rawJS string
+	)
+	switch path {
+	case "/client.js":
+		rawJS = ClientJS
+	case "/alpine.js":
+		rawJS = AlpineJS
+	default:
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	hs, ok := rawHash[path]
+	if !ok {
+		rawCache[path] = []byte(rawJS)
+		rawHash[path] = eTag(rawCache[path])
+		hs = rawHash[path]
+	}
+	body := rawCache[path]
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		hs, ok = gzHash[path]
+		if !ok {
+			var b bytes.Buffer
+			gz := gzip.NewWriter(&b)
+			if _, err := gz.Write([]byte(rawJS)); err != nil {
+				panic(err)
+			}
+			if err := gz.Close(); err != nil {
+				panic(err)
+			}
+			gzCache[path] = b.Bytes()
+			gzHash[path] = eTag(gzCache[path])
+			hs = gzHash[path]
 		}
-		if err := gz.Close(); err != nil {
-			panic(err)
-		}
-		clientCache = b.Bytes()
-		hasher := md5.New()
-		hasher.Write(clientCache)
-		clientHash = hex.EncodeToString(hasher.Sum(nil))
+		body = gzCache[path]
 	}
 
 	h := w.Header()
 	h.Set("Content-Encoding", "gzip")
 	h.Set("Content-Type", "application/javascript")
-	h.Set("Etag", clientHash)
+	h.Set("Etag", hs)
 	h.Set("Cache-Control", "max-age=86400")
 
-	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, clientHash) {
+	if match := r.Header.Get("If-None-Match"); match != "" && strings.Contains(match, hs) {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-
-	w.Write(clientCache)
+	w.Write(body)
 }
