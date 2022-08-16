@@ -1,4 +1,5 @@
 document.addEventListener('alpine:init', function () {
+  const store = sessionStorage;
   function sendRequest(method, url, data, onSuccess, onError) {
     if (!onError) {
       onError = function (err) {
@@ -66,8 +67,10 @@ document.addEventListener('alpine:init', function () {
     }
     sendRequest("GET", bPath(env.refresh), null, (r) => {
       Alpine.store("values").accessToken = r.access_token;
+      store.setItem("gauth", "1");
       onSuccess(r.access_token);
     }, function (err, code) {
+      store.removeItem("gauth");
       if (code === 401 && location.pathname !== bPath(env.login)) {
         toLogin();
       } else if (code !== 401)
@@ -115,9 +118,10 @@ document.addEventListener('alpine:init', function () {
     },
     logout: function () {
       sendRequest("DELETE", bPath(env.refresh), null, function () {
+        store.removeItem("gauth");
         location.href = bPath(env.login);
       }, function (err) {
-        sessionStorage.setItem("alertDanger", err.error);
+        store.setItem("alertDanger", err.error);
         location.href = bPath(env.login);
       });
     }
@@ -133,17 +137,17 @@ document.addEventListener('alpine:init', function () {
     danger: "alertDanger"
   };
   for (let k in alerts) {
-    const msg = sessionStorage.getItem(alerts[k]);
+    const msg = store.getItem(alerts[k]);
     if (msg) {
       Alpine.store('notify').alert(k, msg);
-      sessionStorage.removeItem(alerts[k]);
+      store.removeItem(alerts[k]);
     }
   }
 
   function goLogin() {
     accessToken(function () {
-      location.href = query.r || sessionStorage.getItem("ref") || env.base + env.account;
-      sessionStorage.removeItem("ref");
+      location.href = query.r || store.getItem("ref") || env.base + env.account;
+      store.removeItem("ref");
     });
   }
   Alpine.data('form', function () {
@@ -154,19 +158,19 @@ document.addEventListener('alpine:init', function () {
     return {
       init: function () {
         if (query.r) {
-          sessionStorage.setItem("ref", query.r);
-        } else if (document.referrer && !sessionStorage.getItem("ref") && document.referrer.indexOf(bPath(env.login)) === -1 && document.referrer.indexOf(bPath(env.register)) === -1) {
-          sessionStorage.setItem("ref", document.referrer);
+          store.setItem("ref", query.r);
+        } else if (document.referrer && !store.getItem("ref") && document.referrer.indexOf(bPath(env.login)) === -1 && document.referrer.indexOf(bPath(env.register)) === -1) {
+          store.setItem("ref", document.referrer);
         }
         if (query.a === "verify") {
           sendRequest("POST", actPath, {
             action: query.a,
             token: query.t
           }, () => {
-            sessionStorage.setItem("alertSuccess", "Email Verified");
+            store.setItem("alertSuccess", "Email Verified");
             location.href = "?";
           }, (err) => {
-            sessionStorage.setItem("alertDanger", err.error);
+            store.setItem("alertDanger", err.error);
             location.href = "?";
           });
         } else if (query.a === "login") {
@@ -175,7 +179,7 @@ document.addEventListener('alpine:init', function () {
           }, () => {
             goLogin();
           }, (err) => {
-            sessionStorage.setItem("alertDanger", err.error);
+            store.setItem("alertDanger", err.error);
             location.href = "?";
           });
         }
@@ -186,7 +190,7 @@ document.addEventListener('alpine:init', function () {
                 action: query.a,
                 token: query.t
               }, () => {
-                sessionStorage.setItem("alertSuccess", "Email updated!");
+                store.setItem("alertSuccess", "Email updated!");
                 location.href = bPath(env.account);
               });
               return;
@@ -289,7 +293,7 @@ document.addEventListener('alpine:init', function () {
         }
         sendRequest("POST", path, input, (r, code) => {
           if (input.action && success[input.action]) {
-            sessionStorage.setItem("alertSuccess", success[input.action]);
+            store.setItem("alertSuccess", success[input.action]);
             location.href = "?";
             return;
           }
@@ -302,7 +306,7 @@ document.addEventListener('alpine:init', function () {
               goLogin();
             }
           } else if (isRegister) {
-            sessionStorage.setItem("alertSuccess", code === 201 ? "Email confirmation link sent to your email." : "Registration success!");
+            store.setItem("alertSuccess", code === 201 ? "Email confirmation link sent to your email." : "Registration success!");
             location.href = bPath(env.login);
           } else if (isAccount) {
             this.updateAccount(r);

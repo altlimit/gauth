@@ -311,7 +311,8 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	if r.Method == http.MethodDelete || r.URL.Query().Get("logout") == "1" {
+	isLogout := r.URL.Query().Get("logout") == "1"
+	if r.Method == http.MethodDelete || isLogout {
 		err := ga.refreshTokenProvider.DeleteRefreshToken(ctx, claims["sub"], cid)
 		if err != nil {
 			ga.internalError(w, err)
@@ -329,6 +330,13 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 				SameSite: http.SameSiteStrictMode,
 				Path:     ga.Path.Base + ga.Path.Refresh,
 			})
+		}
+		if isLogout {
+			url := ga.Path.Base + ga.Path.Login
+			if ref := r.Header.Get("Referer"); ref != "" {
+				url = ref
+			}
+			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 		}
 		return
 	}

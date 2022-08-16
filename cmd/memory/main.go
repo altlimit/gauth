@@ -88,7 +88,9 @@ func homeHandler() http.Handler {
 		</head>
 		<body>
 			<a href="/auth/login">Login</a>
+			<a href="/auth/refresh?logout=1">Logout</a>
 			<a href="/auth/login?r=/dashboard">Dashboard</a>
+			<a href="/auth/account">Account</a>
 		</body>
 		</html>
 		`))
