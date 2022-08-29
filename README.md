@@ -138,6 +138,10 @@ ga.JwtKey = FromYourConfig.JwtKey
 http.Handle("/auth/", ga.MustInit(false))
 // here your me handler must have Authorization: Bearer {accessToken} or it will return 401
 http.Handle("/api/me", ga.AuthMiddleware(meHandler()))
+// if you provide AccessTokenCookieName AuthMiddleware automatically redirects to refresh and
+// create an access token stored in cookie for authorization through cookie
+ga.AccessTokenCookieName = "atoken"
+http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
 
 // you could also create your own middleware and use ga.Authorized(r) to check for auth
 auth, err := ga.Authorized(r)

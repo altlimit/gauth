@@ -270,43 +270,80 @@ func (ga *GAuth) CreateAccessToken(ctx context.Context, sub string, grants inter
 }
 
 func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Token string `json:"token"`
-	}
+	var (
+		req struct {
+			Token string `json:"token"`
+		}
+
+		result interface{}
+	)
+	status := http.StatusOK
+	ref := r.URL.Query().Get("ref")
+	defer func() {
+		err, ok := result.(error)
+		if ok || status >= 400 {
+			errMsg := http.StatusText(status)
+			if ok {
+				ga.log(errMsg, err)
+			}
+			if ref == "" {
+				if ga.isJson(r) {
+					ga.writeJSON(status, w, errorResponse{Error: errMsg})
+				} else {
+					http.Error(w, errMsg, status)
+				}
+			} else {
+				http.Redirect(w, r, ga.Path.Base+ga.Path.Login+"?r="+ref, http.StatusTemporaryRedirect)
+			}
+			return
+		}
+		if ref != "" {
+			http.Redirect(w, r, ref, http.StatusTemporaryRedirect)
+			return
+		}
+		if status == http.StatusTemporaryRedirect {
+			http.Redirect(w, r, result.(string), http.StatusTemporaryRedirect)
+			return
+		}
+		ga.writeJSON(status, w, result)
+	}()
+
 	if r.Method == http.MethodPost {
 		if err := ga.bind(r, &req); err != nil {
-			ga.badError(w, err)
+			status = http.StatusBadRequest
+			result = err
 			return
 		}
 	} else if (r.Method == http.MethodGet || r.Method == http.MethodDelete) && ga.RefreshTokenCookieName != "" {
 		c, err := r.Cookie(ga.RefreshTokenCookieName)
 		if err != nil {
 			if err == http.ErrNoCookie {
-				ga.writeJSON(http.StatusUnauthorized, w, nil)
+				status = http.StatusUnauthorized
 				return
 			}
-			ga.internalError(w, err)
+			status = http.StatusInternalServerError
+			result = err
 			return
 		}
 		req.Token = c.Value
 	} else {
-		ga.writeJSON(http.StatusMethodNotAllowed, w, nil)
+		status = http.StatusMethodNotAllowed
 		return
 	}
 	if req.Token == "" {
-		ga.writeJSON(http.StatusUnauthorized, w, nil)
+		status = http.StatusUnauthorized
 		return
 	}
 
 	claims, err := ga.tokenStringClaims(req.Token, "")
 	if err != nil {
-		ga.log("tokenStringClaims error", err)
-		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
+		result = err
+		status = http.StatusUnauthorized
 		return
 	}
 	cid, ok := claims["cid"]
 	if !ok {
-		ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
+		status = http.StatusUnauthorized
 		return
 	}
 
@@ -315,7 +352,8 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete || isLogout {
 		err := ga.refreshTokenProvider.DeleteRefreshToken(ctx, claims["sub"], cid)
 		if err != nil {
-			ga.internalError(w, err)
+			status = http.StatusInternalServerError
+			result = err
 			return
 		}
 
@@ -331,12 +369,17 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 				Path:     ga.Path.Base + ga.Path.Refresh,
 			})
 		}
+		if ga.AccessTokenCookieName != "" {
+			http.SetCookie(w, &http.Cookie{Name: ga.AccessTokenCookieName, Value: "", Expires: time.Unix(0, 0),
+				HttpOnly: true, Secure: true, MaxAge: -1, SameSite: http.SameSiteStrictMode, Path: "/"})
+		}
 		if isLogout {
 			url := ga.Path.Base + ga.Path.Login
 			if ref := r.Header.Get("Referer"); ref != "" {
 				url = ref
 			}
-			http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+			status = http.StatusTemporaryRedirect
+			result = url
 		}
 		return
 	}
@@ -345,22 +388,39 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	grants, err := ga.accessTokenProvider.CreateAccessToken(ctx, claims["sub"], cid)
 	if err != nil {
 		if err == ErrTokenDenied {
-			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: http.StatusText(http.StatusUnauthorized)})
+			status = http.StatusUnauthorized
 			return
 		}
-		ga.internalError(w, err)
+		status = http.StatusInternalServerError
+		result = err
 		return
 	}
 	tok, err := ga.CreateAccessToken(ctx, claims["sub"], grants, time.Now().Add(ga.Timeout.AccessToken))
 	if err != nil {
-		ga.internalError(w, fmt.Errorf("refreshHandler: SignedString error %v", err))
+		status = http.StatusInternalServerError
+		result = err
 		return
 	}
-	resp := map[string]interface{}{
+
+	expire := ga.Timeout.AccessToken
+	if ga.AccessTokenCookieName != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name:     ga.AccessTokenCookieName,
+			Value:    tok,
+			Expires:  time.Now().Add(expire),
+			HttpOnly: true,
+			Secure:   true,
+			MaxAge:   int(expire.Seconds()),
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+		})
+	}
+
+	result = map[string]interface{}{
 		"access_token": tok,
 		"token_type":   "Bearer",
-		"expires_in":   ga.Timeout.AccessToken.Seconds(),
+		"expires_in":   expire.Seconds(),
 		"scope":        grants,
 	}
-	ga.writeJSON(http.StatusOK, w, resp)
+	status = http.StatusOK
 }

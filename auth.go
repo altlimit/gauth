@@ -41,6 +41,12 @@ func (ga *GAuth) headerToken(r *http.Request) string {
 	if len(auth) == 2 && strings.ToLower(auth[0]) == "bearer" {
 		return auth[1]
 	}
+	if ga.AccessTokenCookieName != "" {
+		c, err := r.Cookie(ga.AccessTokenCookieName)
+		if err == nil && c != nil {
+			return c.Value
+		}
+	}
 	return ""
 }
 
@@ -74,8 +80,10 @@ func (ga *GAuth) AuthMiddleware(next http.Handler) http.Handler {
 		msg := http.StatusText(http.StatusUnauthorized)
 		if ga.isJson(r) {
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: msg})
+		} else if ga.AccessTokenCookieName != "" {
+			http.Redirect(w, r, ga.Path.Base+ga.Path.Refresh+"?ref="+r.URL.Path, http.StatusTemporaryRedirect)
 		} else {
-			http.Error(w, msg, http.StatusUnauthorized)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		}
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

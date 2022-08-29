@@ -64,8 +64,10 @@ type (
 		JwtKey     []byte
 		BCryptCost int
 
-		// Defaults to rtoken with NewDefault(), set to blank to not set a cookie
+		// RefreshTokenCookieName defaults to rtoken with NewDefault(), set to blank to not set a cookie
 		RefreshTokenCookieName string
+		// AccessTokenCookieName default is blank, enable to set access token on /
+		AccessTokenCookieName string
 
 		// Page branding
 		Brand form.Brand
@@ -546,14 +548,12 @@ func (ga *GAuth) log(args ...interface{}) {
 
 func (ga *GAuth) internalError(w http.ResponseWriter, err error) {
 	ga.log("InternalServerError", err)
-	ga.writeJSON(http.StatusInternalServerError, w,
-		map[string]string{"error": http.StatusText(http.StatusInternalServerError)})
+	ga.writeJSON(http.StatusInternalServerError, w, errorResponse{Error: http.StatusText(http.StatusInternalServerError)})
 }
 
 func (ga *GAuth) badError(w http.ResponseWriter, err error) {
 	ga.log("BadRequestError", err)
-	ga.writeJSON(http.StatusBadRequest, w,
-		map[string]string{"error": http.StatusText(http.StatusBadRequest)})
+	ga.writeJSON(http.StatusBadRequest, w, errorResponse{Error: http.StatusText(http.StatusBadRequest)})
 }
 
 func (ga *GAuth) tokenStringClaims(tok, key string) (map[string]string, error) {

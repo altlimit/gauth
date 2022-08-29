@@ -89,7 +89,7 @@ func homeHandler() http.Handler {
 		<body>
 			<a href="/auth/login">Login</a>
 			<a href="/auth/refresh?logout=1">Logout</a>
-			<a href="/auth/login?r=/dashboard">Dashboard</a>
+			<a href="/dashboard">Dashboard</a>
 			<a href="/auth/account">Account</a>
 		</body>
 		</html>
@@ -110,6 +110,7 @@ func main() {
 		}},
 		&form.Field{ID: "answer", Label: "Answer", Type: "textarea", Validate: gauth.RequiredText, SettingsTab: "Security,only"},
 	)
+	ga.AccessTokenCookieName = "atoken"
 	http.Handle("/auth/", ga.MustInit(true))
 	http.Handle("/dashboard", ga.AuthMiddleware(dashboardHandler()))
 	http.Handle("/", homeHandler())
