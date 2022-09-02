@@ -44,15 +44,15 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 		skipFields[FieldCodeID] = true
 		skipFields[ga.EmailFieldID] = true
 		cleanResp := func() {
-			totpEnabled, okT := data[FieldTOTPSecretID].(string)
-			recovEnabled, okR := data[FieldRecoveryCodesID].(string)
+			totpEnabled := toString(data[FieldTOTPSecretID])
+			recovEnabled := toString(data[FieldRecoveryCodesID])
 			for _, v := range delFields {
 				delete(data, v)
 			}
-			if okT && len(totpEnabled) > 0 {
+			if len(totpEnabled) > 0 {
 				data[FieldTOTPSecretID] = true
 			}
-			if okR && len(recovEnabled) > 0 {
+			if len(recovEnabled) > 0 {
 				data[FieldRecoveryCodesID] = len(strings.Split(recovEnabled, "|"))
 			}
 		}
@@ -125,7 +125,7 @@ func (ga *GAuth) accountHandler(w http.ResponseWriter, r *http.Request) {
 
 			status := http.StatusOK
 			nEmail, _ := req[ga.EmailFieldID].(string)
-			oEmail, _ := data[ga.EmailFieldID].(string)
+			oEmail := toString(data[ga.EmailFieldID])
 			if nEmail != oEmail {
 				if ga.emailSender == nil {
 					data[ga.EmailFieldID] = nEmail

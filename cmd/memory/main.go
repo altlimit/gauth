@@ -17,14 +17,14 @@ type (
 
 	User struct {
 		ID            string
-		Name          string `gauth:"name"`
-		Password      string `gauth:"password"`
-		Email         string `gauth:"email"`
-		Active        bool   `gauth:"active"`
-		TotpSecretKey string `gauth:"totpsecret"`
-		RecoveryCodes string `gauth:"recoverycodes"`
-		Question      string `gauth:"question"`
-		Answer        string `gauth:"answer"`
+		Name          string  `gauth:"name"`
+		Password      *string `gauth:"password"`
+		Email         string  `gauth:"email"`
+		Active        bool    `gauth:"active"`
+		TotpSecretKey string  `gauth:"totpsecret"`
+		RecoveryCodes *string `gauth:"recoverycodes"`
+		Question      string  `gauth:"question"`
+		Answer        string  `gauth:"answer"`
 	}
 )
 

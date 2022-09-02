@@ -604,7 +604,10 @@ func (ga *GAuth) saveIdentity(ctx context.Context, id Identity, req map[string]i
 			vv := reflect.ValueOf(val)
 			fv := v.Field(field.Index)
 			ft := fv.Type()
-			if vt == ft {
+			if ft.Kind() == reflect.Ptr && ft.Elem() == vt {
+				fv.Set(reflect.New(vt))
+				fv.Elem().Set(vv)
+			} else if vt == ft {
 				fv.Set(vv)
 			} else {
 				ga.log("WARN field not mapped: ", tag, "type is", ft, "got", vt, "value", val)

@@ -193,3 +193,13 @@ func clientFromRequest(r *http.Request, key, salt string) string {
 	h.Write([]byte(cid))
 	return hex.EncodeToString(h.Sum(nil)) + salt
 }
+
+func toString(s interface{}) string {
+	if val, ok := s.(string); ok {
+		return val
+	}
+	if val, ok := s.(*string); ok && val != nil {
+		return *val
+	}
+	return ""
+}

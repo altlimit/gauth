@@ -158,12 +158,12 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 	data := ga.loadIdentity(id)
 
 	if withPW {
-		if !validPassword(data[ga.PasswordFieldID].(string), passwd) {
+		if !validPassword(toString(data[ga.PasswordFieldID]), passwd) {
 			ga.validationError(w, ga.PasswordFieldID, "invalid")
 			return
 		}
 
-		if totpSecret, ok := data[FieldTOTPSecretID].(string); ok && len(totpSecret) > 0 {
+		if totpSecret := toString(data[FieldTOTPSecretID]); len(totpSecret) > 0 {
 			code, ok := req[FieldCodeID].(string)
 			if !ok {
 				ga.validationError(w, FieldCodeID, "required")
@@ -171,8 +171,8 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			usedRecovery := false
 			if len(code) == 10 {
-				recovery, ok := data[FieldRecoveryCodesID].(string)
-				if ok && len(recovery) > 0 {
+				recovery := toString(data[FieldRecoveryCodesID])
+				if len(recovery) > 0 {
 					var unused []string
 					for _, val := range strings.Split(recovery, "|") {
 						if !usedRecovery && validPassword(val, code) {

@@ -67,7 +67,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			data := ga.loadIdentity(accoount)
 			key, err := totp.Generate(totp.GenerateOpts{
 				Issuer:      ga.Brand.AppName,
-				AccountName: data[ga.IdentityFieldID].(string),
+				AccountName: toString(data[ga.IdentityFieldID]),
 			})
 			if err != nil {
 				ga.internalError(w, err)
@@ -173,7 +173,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		acct := ga.loadIdentity(identity)
-		pw, _ := acct[ga.PasswordFieldID].(string)
+		pw := toString(acct[ga.PasswordFieldID])
 		claims, err := ga.tokenStringClaims(req["token"], pw)
 		if err != nil || uid != claims["uid"] {
 			ga.log("verify token error", err)
@@ -254,7 +254,7 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			data := ga.loadIdentity(identity)
-			cEmail, _ := data[ga.EmailFieldID].(string)
+			cEmail := toString(data[ga.EmailFieldID])
 			if cEmail != email {
 				cEmail = email
 				if _, err := ga.saveIdentity(ctx, identity, map[string]interface{}{

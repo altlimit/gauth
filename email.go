@@ -51,7 +51,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		jwtKey := ga.JwtKey
 		if action == actionReset {
 			// we append password hash for password resets
-			jwtKey = append(jwtKey, []byte(req[ga.PasswordFieldID].(string))...)
+			jwtKey = append(jwtKey, []byte(toString(req[ga.PasswordFieldID]))...)
 		}
 		tok, err := token.SignedString(jwtKey)
 		if err != nil {

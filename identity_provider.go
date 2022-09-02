@@ -66,7 +66,7 @@ type (
 // Default behaviour of refresh token is using cid -> IP + UserAgent + PWHash
 func (dr *DefaultRefreshTokenProvider) CreateRefreshToken(ctx context.Context, uid string) (cid string, err error) {
 	if req, ok := ctx.Value(RequestKey).(*http.Request); ok {
-		pw, _ := ctx.Value(pwHashKey).(string)
+		pw := toString(ctx.Value(pwHashKey))
 		cid := clientFromRequest(req, pw, "")
 		return cid, nil
 	}
@@ -91,7 +91,7 @@ func (da *DefaultAccessTokenProvider) CreateAccessToken(ctx context.Context, uid
 					return nil, err
 				}
 				data := da.ga.loadIdentity(identity)
-				pw, _ = data[da.ga.PasswordFieldID].(string)
+				pw = toString(data[da.ga.PasswordFieldID])
 			}
 			reqCID := clientFromRequest(req, pw, cid[strings.Index(cid, "$"):])
 			if cid == reqCID {
