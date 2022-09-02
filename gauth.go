@@ -178,8 +178,8 @@ func (ga *GAuth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/action":
 		ga.actionHandler(w, r)
 	default:
-		if strings.HasSuffix(path, ".js") {
-			form.RenderJS(w, r, path)
+		if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") {
+			form.RenderAsset(w, r, path)
 			return
 		}
 		if ga.debug && path == "/email-template" {

@@ -114,22 +114,26 @@ func eTag(b []byte) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func RenderJS(w http.ResponseWriter, r *http.Request, path string) {
+func RenderAsset(w http.ResponseWriter, r *http.Request, path string) {
 	var (
-		rawJS string
+		rawAsset string
 	)
+	cType := "application/javascript"
 	switch path {
+	case "/client.css":
+		rawAsset = ClientCSS
+		cType = "text/css"
 	case "/client.js":
-		rawJS = ClientJS
+		rawAsset = ClientJS
 	case "/alpine.js":
-		rawJS = AlpineJS
+		rawAsset = AlpineJS
 	default:
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
 	}
 	hs, ok := rawHash[path]
 	if !ok {
-		rawCache[path] = []byte(rawJS)
+		rawCache[path] = []byte(rawAsset)
 		rawHash[path] = eTag(rawCache[path])
 		hs = rawHash[path]
 	}
@@ -139,7 +143,7 @@ func RenderJS(w http.ResponseWriter, r *http.Request, path string) {
 		if !ok {
 			var b bytes.Buffer
 			gz := gzip.NewWriter(&b)
-			if _, err := gz.Write([]byte(rawJS)); err != nil {
+			if _, err := gz.Write([]byte(rawAsset)); err != nil {
 				panic(err)
 			}
 			if err := gz.Close(); err != nil {
@@ -154,7 +158,7 @@ func RenderJS(w http.ResponseWriter, r *http.Request, path string) {
 
 	h := w.Header()
 	h.Set("Content-Encoding", "gzip")
-	h.Set("Content-Type", "application/javascript")
+	h.Set("Content-Type", cType)
 	h.Set("Etag", hs)
 	h.Set("Cache-Control", "max-age=86400")
 
