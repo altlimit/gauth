@@ -75,7 +75,7 @@ func (dr *DefaultRefreshTokenProvider) CreateRefreshToken(ctx context.Context, u
 
 // Default behaviour of logout is in memory black list of cid that only keeps the last 500
 func (dr *DefaultRefreshTokenProvider) DeleteRefreshToken(ctx context.Context, uid, cid string) error {
-	dr.ga.lru.Put("x:"+uid+cid, true)
+	dr.ga.lru.Put("x:"+uid+cid, true, 0)
 	return nil
 }
 

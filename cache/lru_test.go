@@ -2,14 +2,15 @@ package cache_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/altlimit/gauth/cache"
 )
 
 func TestNewLRUCache2(t *testing.T) {
 	c := cache.NewLRUCache(2)
-	c.Put(1, 1)
-	c.Put(2, 2)
+	c.Put(1, 1, time.Millisecond*3)
+	c.Put(2, 2, 0)
 	v, ok := c.Get(1)
 	if !ok {
 		t.Errorf("wanted ok got !ok")
@@ -18,12 +19,18 @@ func TestNewLRUCache2(t *testing.T) {
 	if val != 1 {
 		t.Errorf("wanted 1 got %v", val)
 	}
-	c.Put(3, 3)
+	time.Sleep(time.Millisecond * 11)
+	_, ok = c.Get(1)
+	if ok {
+		t.Errorf("wanted !ok got ok")
+	}
+	c.Put(1, 1, 0)
+	c.Put(3, 3, 0)
 	_, ok = c.Get(2)
 	if ok {
 		t.Error("wanted !ok got ok")
 	}
-	c.Put(4, 4)
+	c.Put(4, 4, 0)
 	_, ok = c.Get(1)
 	if ok {
 		t.Error("wanted !ok got ok")

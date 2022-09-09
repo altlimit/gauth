@@ -2,22 +2,31 @@ package cache
 
 import (
 	"sync"
+	"time"
 )
 
 type node struct {
-	key, val   interface{}
+	key        interface{}
+	val        *lruItem
 	prev, next *node
 }
 
-type LRUCache struct {
-	size       int
-	capacity   int
-	cache      sync.Map
-	head, tail *node
-	lock       sync.Mutex
-}
+type (
+	LRUCache struct {
+		size       int
+		capacity   int
+		cache      sync.Map
+		head, tail *node
+		lock       sync.Mutex
+	}
 
-func initNode(key, val interface{}) *node {
+	lruItem struct {
+		Expire time.Time
+		Value  interface{}
+	}
+)
+
+func initNode(key interface{}, val *lruItem) *node {
 	return &node{
 		key: key,
 		val: val,
@@ -38,25 +47,36 @@ func NewLRUCache(capacity int) *LRUCache {
 func (c *LRUCache) Get(key interface{}) (interface{}, bool) {
 	if v, ok := c.cache.Load(key); ok {
 		n, _ := v.(*node)
-		c.moveToHead(n)
-		return n.val, true
+		item := n.val
+		if !item.Expire.IsZero() && item.Expire.Before(time.Now()) {
+			c.removeNode(n)
+			c.cache.Delete(n.key)
+			c.size--
+		} else {
+			c.moveToHead(n)
+			return item.Value, true
+		}
 	}
 	return nil, false
 }
 
-func (c *LRUCache) Put(key, val interface{}) {
+func (c *LRUCache) Put(key, val interface{}, expire time.Duration) {
 	if v, ok := c.cache.Load(key); ok {
 		n, _ := v.(*node)
-		n.val = val
+		n.val.Value = val
 		c.moveToHead(n)
 	} else {
-		n := initNode(key, val)
-		c.cache.Store(key, n)
+		item := &lruItem{Value: val}
+		if expire > 0 {
+			item.Expire = time.Now().Add(expire)
+		}
+		n := initNode(key, item)
+		c.cache.Store(n.key, n)
 		c.addToHead(n)
 		c.size++
 		if c.size > c.capacity {
-			evictedNode := c.removeTail()
-			c.cache.Delete(evictedNode.key)
+			n = c.removeTail()
+			c.cache.Delete(n.key)
 			c.size--
 		}
 	}

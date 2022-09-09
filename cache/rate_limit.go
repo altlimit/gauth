@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -25,12 +24,7 @@ type (
 	}
 
 	MemoryRateLimit struct {
-		cache sync.Map
-	}
-
-	CacheItem struct {
-		Value   interface{}
-		Expires time.Time
+		cache *LRUCache
 	}
 )
 
@@ -39,44 +33,22 @@ func (rle RateLimitError) Error() string {
 }
 
 func NewMemoryRateLimit() *MemoryRateLimit {
-	mrl := &MemoryRateLimit{}
-	// clears cache every 10 minute
-	go func() {
-		for {
-			time.Sleep(time.Minute * 10)
-			now := time.Now()
-			mrl.cache.Range(func(key, value interface{}) bool {
-				if c, ok := value.(*CacheItem); ok {
-					if c.Expires.Before(now) {
-						mrl.cache.Delete(key)
-					}
-				}
-				return true
-			})
-		}
-	}()
-	return mrl
+	return &MemoryRateLimit{
+		cache: NewLRUCache(1000),
+	}
 }
 
 func (mrl *MemoryRateLimit) RateLimit(ctx context.Context, key string, rate int, t time.Duration) error {
 	key = "rate:" + key
-	var item *CacheItem
-	cache, ok := mrl.cache.Load(key)
+	var hits int
+	cache, ok := mrl.cache.Get(key)
 	if ok {
-		item, _ = cache.(*CacheItem)
+		hits, _ = cache.(int)
 	}
-	now := time.Now()
-	if !ok || item.Expires.Before(now) {
-		item = &CacheItem{Value: 0, Expires: now.Add(t)}
-
-	}
-	val, ok := item.Value.(int)
-	if ok {
-		item.Value = val + 1
-	}
-	if val > rate {
+	hits++
+	if hits > rate {
 		return RateLimitError{Rate: Rate{Rate: rate, Duration: t}}
 	}
-	mrl.cache.Store(key, item)
+	mrl.cache.Put(key, hits, t)
 	return nil
 }
