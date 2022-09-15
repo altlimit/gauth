@@ -82,6 +82,17 @@ func (c *LRUCache) Put(key, val interface{}, expire time.Duration) {
 	}
 }
 
+func (c *LRUCache) Delete(key interface{}) bool {
+	if v, ok := c.cache.Load(key); ok {
+		n, _ := v.(*node)
+		c.removeNode(n)
+		c.cache.Delete(n.key)
+		c.size--
+		return true
+	}
+	return false
+}
+
 func (c *LRUCache) Len() int {
 	return c.size
 }

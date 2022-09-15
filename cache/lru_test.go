@@ -52,4 +52,17 @@ func TestNewLRUCache2(t *testing.T) {
 	if val != 4 {
 		t.Errorf("wanted 4 got %v", val)
 	}
+	if v := c.Delete(5); v {
+		t.Errorf("wanted false got true")
+	}
+	if c.Len() == 1 {
+		t.Errorf("wanted cap 2 got 1")
+	}
+	if v := c.Delete(4); !v {
+		t.Errorf("wanted true got false")
+	}
+	v, ok = c.Get(4)
+	if ok {
+		t.Errorf("wanted deleted key got val %v", v)
+	}
 }
