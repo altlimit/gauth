@@ -3,6 +3,7 @@ package gauth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -61,7 +62,16 @@ type (
 	DefaultAccessTokenProvider struct {
 		ga *GAuth
 	}
+
+	ValidationError struct {
+		Field   string
+		Message string
+	}
 )
+
+func (ve ValidationError) Error() string {
+	return fmt.Sprintf("Validation %s %s", ve.Field, ve.Message)
+}
 
 // Default behaviour of refresh token is using cid -> IP + UserAgent + PWHash
 func (dr *DefaultRefreshTokenProvider) CreateRefreshToken(ctx context.Context, uid string) (cid string, err error) {

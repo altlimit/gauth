@@ -144,6 +144,10 @@ func (ga *GAuth) loginHandler(w http.ResponseWriter, r *http.Request) {
 			ga.validationError(w, ga.PasswordFieldID, "invalid")
 			return
 		}
+		if ve, ok := err.(ValidationError); ok {
+			ga.validationError(w, ve.Field, ve.Message)
+			return
+		}
 		ga.internalError(w, err)
 		return
 	}
