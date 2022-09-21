@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -297,7 +298,7 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, errMsg, status)
 				}
 			} else {
-				http.Redirect(w, r, ga.Path.Base+ga.Path.Login+"?r="+ref, http.StatusTemporaryRedirect)
+				http.Redirect(w, r, ga.Path.Base+ga.Path.Login+"?r="+url.QueryEscape(ref), http.StatusTemporaryRedirect)
 			}
 			return
 		}

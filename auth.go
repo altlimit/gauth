@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -81,7 +82,7 @@ func (ga *GAuth) AuthMiddleware(next http.Handler) http.Handler {
 		if ga.isJson(r) {
 			ga.writeJSON(http.StatusUnauthorized, w, errorResponse{Error: msg})
 		} else if ga.AccessTokenCookieName != "" {
-			http.Redirect(w, r, ga.Path.Base+ga.Path.Refresh+"?ref="+r.URL.Path, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, ga.Path.Base+ga.Path.Refresh+"?ref="+url.QueryEscape(r.RequestURI), http.StatusTemporaryRedirect)
 		} else {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		}
