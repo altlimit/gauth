@@ -1,6 +1,7 @@
 package gauth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -55,8 +56,7 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	ctx := r.Context()
-
+	ctx := context.WithValue(r.Context(), RequestKey, r)
 	// check if identityField is unique
 	id, ok := req[ga.IdentityFieldID].(string)
 	if !ok {
@@ -91,6 +91,10 @@ func (ga *GAuth) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	uid, err := ga.saveIdentity(ctx, identity, req)
 	if err != nil {
+		if ve, ok := err.(ValidationError); ok {
+			ga.validationError(w, ve.Field, ve.Message)
+			return
+		}
 		ga.internalError(w, err)
 		return
 	}
