@@ -29,6 +29,11 @@ const (
 	pwHashKey ctxKey = "pwhash"
 )
 
+var (
+	ErrNoToken            = errors.New("no token")
+	ErrInvalidAccessToken = errors.New("invalid access token")
+)
+
 // Load populates your Grants struct
 func (a *Auth) Load(dst interface{}) error {
 	if len(a.Grants) == 0 {
@@ -54,7 +59,7 @@ func (ga *GAuth) headerToken(r *http.Request) string {
 func (ga *GAuth) Authorized(r *http.Request) (*Auth, error) {
 	t := ga.headerToken(r)
 	if t == "" {
-		return nil, errors.New("no token")
+		return nil, ErrNoToken
 	}
 	claims, err := ga.tokenClaims(t, "")
 	if err != nil {
@@ -73,7 +78,7 @@ func (ga *GAuth) Authorized(r *http.Request) (*Auth, error) {
 		}
 		return auth, nil
 	}
-	return nil, errors.New("invalid access token")
+	return nil, ErrInvalidAccessToken
 }
 
 func (ga *GAuth) AuthMiddleware(next http.Handler) http.Handler {
