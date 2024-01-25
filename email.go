@@ -59,7 +59,9 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		}
 		baseURL := ga.Brand.AppURL + ga.Path.Base
 		if bURL, ok := ga.IdentityProvider.(email.EmailBaseURL); ok {
-			baseURL = bURL.EmailBaseURL(ctx)
+			if url := bURL.EmailBaseURL(ctx); url != "" {
+				baseURL = url
+			}
 		}
 		link := baseURL + actPath + "?a=" + action + "&t=" + tok
 		ed := ga.emailData()
