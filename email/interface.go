@@ -11,6 +11,10 @@ type (
 		SendEmail(ctx context.Context, toEmail string, subject string, textBody string, htmlBody string) error
 	}
 
+	EmailBaseURL interface {
+		EmailBaseURL(ctx context.Context) string
+	}
+
 	ConfirmEmail interface {
 		ConfirmEmail(ctx context.Context) (subject string, parts []Part)
 	}

@@ -57,7 +57,11 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 		if err != nil {
 			return false, fmt.Errorf("sendMail: SignedString error %v", err)
 		}
-		link := ga.Brand.AppURL + ga.Path.Base + actPath + "?a=" + action + "&t=" + tok
+		baseURL := ga.Brand.AppURL + ga.Path.Base
+		if bURL, ok := ga.IdentityProvider.(email.EmailBaseURL); ok {
+			baseURL = bURL.EmailBaseURL(ctx)
+		}
+		link := baseURL + actPath + "?a=" + action + "&t=" + tok
 		ed := ga.emailData()
 
 		switch action {
