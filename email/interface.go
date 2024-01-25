@@ -12,18 +12,18 @@ type (
 	}
 
 	ConfirmEmail interface {
-		ConfirmEmail() (subject string, parts []Part)
+		ConfirmEmail(ctx context.Context) (subject string, parts []Part)
 	}
 
 	UpdateEmail interface {
-		UpdateEmail() (subject string, parts []Part)
+		UpdateEmail(ctx context.Context) (subject string, parts []Part)
 	}
 
 	ResetPassword interface {
-		ResetPassword() (subject string, parts []Part)
+		ResetPassword(ctx context.Context) (subject string, parts []Part)
 	}
 
 	LoginEmail interface {
-		LoginEmail() (subject string, parts []Part)
+		LoginEmail(ctx context.Context) (subject string, parts []Part)
 	}
 )

@@ -69,7 +69,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 			}
 
 			if evm, ok := ga.IdentityProvider.(email.LoginEmail); ok {
-				ed.Subject, ed.Data = evm.LoginEmail()
+				ed.Subject, ed.Data = evm.LoginEmail(ctx)
 				if ed.Subject != "" {
 					ed.ReplaceLink(link)
 				}
@@ -81,7 +81,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 				{URL: link, Label: "Verify"},
 			}
 			if evm, ok := ga.IdentityProvider.(email.ConfirmEmail); ok {
-				ed.Subject, ed.Data = evm.ConfirmEmail()
+				ed.Subject, ed.Data = evm.ConfirmEmail(ctx)
 			}
 		case actionEmailUpdate:
 			ed.Subject = "Confirm Email Update"
@@ -91,7 +91,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 			}
 
 			if evm, ok := ga.IdentityProvider.(email.UpdateEmail); ok {
-				ed.Subject, ed.Data = evm.UpdateEmail()
+				ed.Subject, ed.Data = evm.UpdateEmail(ctx)
 				if ed.Subject != "" {
 					ed.ReplaceLink(link)
 				}
@@ -104,7 +104,7 @@ func (ga *GAuth) sendMail(ctx context.Context, action string, uid string, req ma
 			}
 
 			if rp, ok := ga.IdentityProvider.(email.ResetPassword); ok {
-				ed.Subject, ed.Data = rp.ResetPassword()
+				ed.Subject, ed.Data = rp.ResetPassword(ctx)
 				if ed.Subject != "" {
 					ed.ReplaceLink(link)
 				}
