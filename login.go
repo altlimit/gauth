@@ -375,8 +375,16 @@ func (ga *GAuth) refreshHandler(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		if ga.AccessTokenCookieName != "" {
-			http.SetCookie(w, &http.Cookie{Name: ga.AccessTokenCookieName, Value: "", Expires: time.Unix(0, 0),
-				HttpOnly: true, Secure: true, MaxAge: -1, SameSite: http.SameSiteStrictMode, Path: "/"})
+			http.SetCookie(w, &http.Cookie{
+				Name:     ga.AccessTokenCookieName,
+				Value:    "",
+				Expires:  time.Unix(0, 0),
+				HttpOnly: true,
+				Secure:   !ga.debug,
+				MaxAge:   -1,
+				SameSite: http.SameSiteStrictMode,
+				Path:     "/",
+			})
 		}
 		if isLogout {
 			url := ga.Path.Base + ga.Path.Login
