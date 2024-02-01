@@ -65,8 +65,12 @@ func (ga *GAuth) actionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			data := ga.loadIdentity(accoount)
+			issuer := ga.Brand.AppName
+			if iss, ok := req["issuer"]; ok && iss != "" {
+				issuer = iss
+			}
 			key, err := totp.Generate(totp.GenerateOpts{
-				Issuer:      ga.Brand.AppName,
+				Issuer:      issuer,
 				AccountName: toString(data[ga.IdentityFieldID]),
 			})
 			if err != nil {
